@@ -48,4 +48,13 @@
   };
   core.onerror=loadCommercialSuite;
   document.head.appendChild(core);
+
+  const ledger=document.createElement('script');
+  ledger.src='foodpark-ledger.js?v=20261016a';
+  ledger.onload=()=>{
+    const foodpark=document.createElement('script');
+    foodpark.src='foodpark.js?v=20261016a';
+    document.head.appendChild(foodpark);
+  };
+  document.head.appendChild(ledger);
 })();
