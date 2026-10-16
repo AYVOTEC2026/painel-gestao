@@ -32,14 +32,14 @@
     login.setAttribute(FLAG,'1');
     const q=s=>d.querySelector(s);
     if(q('.login-brand b'))q('.login-brand b').textContent='AYVO Food Park';
-    if(q('.login-brand small'))q('.login-brand small').textContent='Gestão para lazer, esporte e eventos';
-    if(q('.login-copy .ey'))q('.login-copy .ey').textContent='GESTÃO PROFISSIONAL PARA OPERAÇÕES DE LAZER';
-    if(q('.login-copy h1'))q('.login-copy h1').textContent='Beach tennis, parque e eventos em uma única gestão.';
-    if(q('.login-copy p'))q('.login-copy p').textContent='Reservas, day use, pulseiras, locações, bilheteria e financeiro com uma operação simples e profissional.';
-    if(q('.login-box h2'))q('.login-box h2').textContent='Acesse a central';
-    if(q('.login-box p'))q('.login-box p').textContent='Entre para acompanhar reservas, parque infantil, locações e eventos.';
+    if(q('.login-brand small'))q('.login-brand small').textContent='PDV, repasse e contabilidade';
+    if(q('.login-copy .ey'))q('.login-copy .ey').textContent='FOOD PARK • UNIDADE NOVA';
+    if(q('.login-copy h1'))q('.login-copy h1').textContent='O caixa do box e o livro do contador no mesmo sistema.';
+    if(q('.login-copy p'))q('.login-copy p').textContent='Comece sem movimento. Cada venda gera a taxa da administração, o líquido do lojista e o arquivo do mês.';
+    if(q('.login-box h2'))q('.login-box h2').textContent='Entrar na operação';
+    if(q('.login-box p'))q('.login-box p').textContent='Depois do acesso, crie o food park vazio ou abra a demonstração para a proprietária.';
     const enter=q('.login-box .btn.full');if(enter)enter.textContent='Entrar no sistema';
-    const demo=q('.demo-note');if(demo)demo.innerHTML='<b>Ambiente demonstrativo.</b> Dados fictícios para apresentação comercial.';
+    const demo=q('.demo-note');if(demo)demo.innerHTML='<b>Unidade nova.</b> A demonstração só existe para apresentar a operação completa.';
     const foot=q('.login-foot');if(foot)foot.textContent='AYVO Tecnologia • Inteligência que transforma';
     q('.fp-strip')?.remove();q('.fp-scene')?.remove();
   }

@@ -118,14 +118,14 @@
     d.title='AYVO Gestão | Operação e Performance';
     document.title='AYVO Gestão | Operação e Performance';
 
-    txt(qs(d,'.login-copy .ey'),'GESTÃO INTEGRADA PARA OPERAÇÕES');
+    txt(qs(d,'.login-copy .ey'),'FOOD PARK • UNIDADE NOVA');
     const loginH1=qs(d,'.login-copy h1');
-    if(loginH1)loginH1.textContent='Controle a operação com visão financeira e comercial em um só lugar.';
+    if(loginH1)loginH1.textContent='O caixa do box e o livro do contador no mesmo sistema.';
     const loginP=qs(d,'.login-copy p');
-    if(loginP)loginP.textContent='Acompanhe contratos, reservas, clientes, recebimentos e indicadores da unidade com processos centralizados e rastreáveis.';
-    const loginTitle=qs(d,'.login-box h2'); if(loginTitle)loginTitle.textContent='Acesse sua operação';
-    const loginText=qs(d,'.login-box p'); if(loginText)loginText.textContent='Entre com suas credenciais para continuar.';
-    const demo=qs(d,'.demo-note'); if(demo)demo.innerHTML='<b>Ambiente demonstrativo.</b> Os registros exibidos são fictícios e servem para apresentação comercial.';
+    if(loginP)loginP.textContent='Comece sem movimento. Cada venda gera a taxa da administração, o líquido do lojista e o arquivo do mês.';
+    const loginTitle=qs(d,'.login-box h2'); if(loginTitle)loginTitle.textContent='Entrar na operação';
+    const loginText=qs(d,'.login-box p'); if(loginText)loginText.textContent='Depois do acesso, crie o food park vazio ou abra a demonstração para a proprietária.';
+    const demo=qs(d,'.demo-note'); if(demo)demo.innerHTML='<b>Unidade nova.</b> A demonstração só existe para apresentar a operação completa.';
     const brand=qs(d,'.brand b'); if(brand)brand.textContent='AYVO Gestão';
     const brandSmall=qs(d,'.brand small'); if(brandSmall)brandSmall.textContent='Operação e performance';
     const foot=qs(d,'.login-foot'); if(foot)foot.textContent='AYVO Tecnologia • Inteligência que transforma';
