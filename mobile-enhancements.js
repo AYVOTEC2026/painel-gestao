@@ -50,10 +50,10 @@
   document.head.appendChild(core);
 
   const ledger=document.createElement('script');
-  ledger.src='foodpark-ledger.js?v=20261016a';
+  ledger.src='foodpark-ledger.js?v=20261016b';
   ledger.onload=()=>{
     const foodpark=document.createElement('script');
-    foodpark.src='foodpark.js?v=20261016a';
+    foodpark.src='foodpark.js?v=20261016b';
     document.head.appendChild(foodpark);
   };
   document.head.appendChild(ledger);

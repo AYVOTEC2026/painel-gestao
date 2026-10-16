@@ -526,7 +526,8 @@
 
   function settlement(state, month) {
     const rows = state.stalls.filter(s => s.status === 'ativo').map(stall => {
-      const sales = activeSales(state, month).filter(s => s.stallId === stall.id && !s.settledAt);
+      const monthSales = activeSales(state, month).filter(s => s.stallId === stall.id);
+      const sales = monthSales.filter(s => !s.settledAt);
       const liability = sales.filter(s => s.holder === 'administracao').reduce((acc, s) => acc + cents(s.netStall), 0);
       const cashAdminFee = sales.filter(s => s.holder === 'lojista').reduce((acc, s) => acc + cents(s.adminFee), 0);
       const rent = state.charges
@@ -537,11 +538,11 @@
         stallId: stall.id,
         box: stall.box,
         name: stall.name,
-        sales: sales.length,
-        gross: reais(sumCents(sales, 'total')),
-        cardFee: reais(sumCents(sales, 'cardFee')),
-        adminFee: reais(sumCents(sales, 'adminFee')),
-        netStall: reais(sumCents(sales, 'netStall')),
+        sales: monthSales.length,
+        gross: reais(sumCents(monthSales, 'total')),
+        cardFee: reais(sumCents(monthSales, 'cardFee')),
+        adminFee: reais(sumCents(monthSales, 'adminFee')),
+        netStall: reais(sumCents(monthSales, 'netStall')),
         liability: reais(liability),
         rentOpen: reais(rent),
         direction: net === 0 ? 'zerado' : net > 0 ? 'pagar_lojista' : 'receber_lojista',
