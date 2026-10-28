@@ -199,7 +199,10 @@ const ACOES = {
       if (estado.mode !== 'demo' && (estado.sales.length || estado.stalls.length)) {
         throw new ErroUsuario('Este food park já tem lojistas ou vendas reais. A demonstração apagaria esses dados.');
       }
-      return { estado: L.demo(agora), resumo: 'Carregou os dados de demonstração.' };
+      const novo = L.demo(agora);
+      novo.park.name = estado.park.name;
+      if (estado.park.city) novo.park.city = estado.park.city;
+      return { estado: novo, resumo: 'Carregou os dados de demonstração.' };
     }
   }
 };

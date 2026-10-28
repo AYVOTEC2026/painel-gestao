@@ -132,6 +132,21 @@ async function roteiro(repo) {
 
 test('API em memória', () => roteiro(criarRepoMemoria()));
 
+test('demonstração usa NOME_DEMO e mantém o nome na recriação do dia seguinte', async () => {
+  const { preparar, precisaPreparar } = require('../server/dominio/visao');
+  const repo = criarRepoMemoria();
+  await semearDemo(repo, lerConfig({ SEED_DEMO: 'true', NOME_DEMO: 'Pepama' }), () => AGORA);
+  const { estado } = await repo.lerParque((await repo.primeiroParque()).id);
+  assert.strictEqual(estado.park.name, 'Pepama');
+  estado.park.name = 'Pepama Food Park';
+  const amanha = '2026-10-29T10:00:00';
+  assert.strictEqual(precisaPreparar(estado, amanha), true);
+  const novo = preparar(estado, amanha).estado;
+  assert.strictEqual(novo.park.name, 'Pepama Food Park');
+  assert.strictEqual(novo.demoDay, '2026-10-29');
+  assert.ok(novo.sales.length > 0);
+});
+
 test('API no Postgres', { skip: !process.env.TEST_DATABASE_URL && 'defina TEST_DATABASE_URL para rodar' }, async () => {
   const repo = criarRepoPg({ url: process.env.TEST_DATABASE_URL });
   await repo.iniciar();

@@ -31,7 +31,11 @@ function precisaPreparar(estado, agora) {
 
 function preparar(estado, agora) {
   if (estado.mode === 'demo' && estado.demoDay !== L.dayOf(agora)) {
-    return { estado: L.demo(agora), resumo: 'Dados de demonstração atualizados para hoje.' };
+    const novo = L.demo(agora);
+    // O nome que a gestão deu ao food park continua depois da recriação diária.
+    novo.park.name = estado.park.name;
+    novo.park.city = estado.park.city;
+    return { estado: novo, resumo: 'Dados de demonstração atualizados para hoje.' };
   }
   return { estado: L.ensureMonthlyRents(estado, agora), resumo: 'Aluguéis do mês lançados para os boxes ocupados.' };
 }

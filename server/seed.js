@@ -14,7 +14,9 @@ const USUARIOS_DEMO = [
  */
 async function semearDemo(repo, cfg, agora) {
   if (await repo.primeiroParque()) return false;
-  const id = await repo.criarParque(L.demo(agora()));
+  const estado = L.demo(agora());
+  if (cfg.nomeDemo) estado.park.name = cfg.nomeDemo;
+  const id = await repo.criarParque(estado);
   for (const u of USUARIOS_DEMO) {
     await repo.usuarios.criar({ parqueId: id, ...u, senhaHash: hashSenha(cfg.senhaDemo), demo: true });
   }

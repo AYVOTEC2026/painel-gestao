@@ -6,6 +6,7 @@
  *   DATABASE_URL        Postgres. Sem ela o sistema roda em memória e perde tudo ao reiniciar.
  *   SEED_DEMO=true      Banco vazio nasce com o food park de demonstração e dois acessos prontos.
  *   SENHA_DEMO          Senha dos acessos de demonstração (padrão: demo1234).
+ *   NOME_DEMO           Nome do food park na demonstração (padrão: Food Park Central).
  *   CODIGO_INSTALACAO   Se preenchido, a tela de instalação pede este código.
  *   TZ                  Fuso do food park (padrão: America/Fortaleza).
  */
@@ -19,6 +20,7 @@ function lerConfig(env = process.env) {
     // Sem banco não há o que preservar: a demonstração entra sempre.
     seedDemo: semBanco || env.SEED_DEMO === 'true' || env.SEED_DEMO === '1',
     senhaDemo: env.SENHA_DEMO || 'demo1234',
+    nomeDemo: String(env.NOME_DEMO || '').trim(),
     codigoInstalacao: env.CODIGO_INSTALACAO || '',
     fuso: env.TZ || 'America/Fortaleza',
     producao: env.NODE_ENV === 'production'

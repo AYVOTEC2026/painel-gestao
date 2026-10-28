@@ -54,6 +54,7 @@ Não precisa de volume: tudo fica no Postgres.
 | `DATABASE_SSL=1` | Liga TLS para banco fora da VPS. O Postgres do próprio Easypanel não precisa. |
 | `SEED_DEMO=true` | Banco **vazio** nasce com o food park de demonstração e os dois acessos prontos. Banco com dados não é tocado. |
 | `SENHA_DEMO` | Senha dos acessos de demonstração (padrão `demo1234`). |
+| `NOME_DEMO` | Nome do food park na demonstração (padrão `Food Park Central`). Só vale quando o banco nasce; depois, troque em Configurações. |
 | `CODIGO_INSTALACAO` | Sem demonstração, a primeira tela é a de instalação. Com este código definido, só quem tem o código instala. |
 | `TZ` | Fuso do food park (padrão `America/Fortaleza`). Define o "hoje" das vendas. |
 
