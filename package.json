@@ -1,0 +1,20 @@
+{
+  "name": "painel-gestao",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AYVO Food Park: PDV por box, repasse aos lojistas, financeiro e arquivos para o contador, com Postgres e acesso por perfil",
+  "main": "server/main.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server/main.js",
+    "dev": "node --watch server/main.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "express": "^4.22.3",
+    "pg": "^8.23.1"
+  }
+}

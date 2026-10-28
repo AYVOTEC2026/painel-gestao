@@ -1,5 +1,5 @@
 const assert = require('assert');
-const L = require('./foodpark-ledger');
+const L = require('../server/dominio/ledger');
 
 function balanced(state) {
   assert.strictEqual(L.booksBalanced(state), true, 'livros contábeis desbalanceados');

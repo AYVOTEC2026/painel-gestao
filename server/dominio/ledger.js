@@ -189,6 +189,87 @@
     return next;
   }
 
+  function updateProduct(state, stallId, productId, input) {
+    const next = clone(state);
+    const stall = stallById(next, stallId);
+    const product = stall && productById(stall, productId);
+    if (!product) throw new Error('Produto não encontrado.');
+    const name = String(input.name == null ? product.name : input.name).trim();
+    const price = input.price == null ? product.price : round2(input.price);
+    if (name.length < 2) throw new Error('Informe o nome do produto.');
+    if (!(price > 0)) throw new Error('Informe um preço maior que zero.');
+    product.name = name;
+    product.price = price;
+    if (input.category != null) product.category = String(input.category).trim() || 'Cardápio';
+    if (input.stock !== undefined) product.stock = input.stock === '' || input.stock == null ? null : Math.max(0, Math.floor(Number(input.stock)));
+    if (input.active !== undefined) product.active = !!input.active;
+    audit(next, `Produto ${name} atualizado no cardápio de ${stall.name}.`);
+    return next;
+  }
+
+  function updateStall(state, stallId, input, at) {
+    const next = clone(state);
+    const stall = stallById(next, stallId);
+    if (!stall || stall.status !== 'ativo') throw new Error('Lojista não encontrado.');
+    const name = String(input.name == null ? stall.name : input.name).trim();
+    if (name.length < 2) throw new Error('Informe o nome da operação.');
+    const fee = input.feePercent === '' || input.feePercent == null ? Number(stall.feePercent) : Number(input.feePercent);
+    if (!(fee >= 0 && fee <= 100)) throw new Error('A taxa de administração precisa ficar entre 0 e 100%.');
+    stall.name = name;
+    if (input.owner != null) stall.owner = String(input.owner).trim();
+    if (input.phone != null) stall.phone = String(input.phone).trim();
+    if (input.document != null) stall.document = String(input.document).trim();
+    if (input.rent != null && input.rent !== '') stall.rent = round2(Math.max(0, Number(input.rent) || 0));
+    stall.feePercent = fee;
+    audit(next, `Cadastro de ${stall.name} atualizado.`, at);
+    return next;
+  }
+
+  function endStall(state, stallId, at) {
+    const next = clone(state);
+    const stall = stallById(next, stallId);
+    if (!stall || stall.status !== 'ativo') throw new Error('Lojista não encontrado.');
+    if (next.sales.some(s => s.stallId === stallId && s.status === 'paga' && !s.settledAt)) {
+      throw new Error('Há vendas deste box sem repasse. Lance o acerto do mês antes de encerrar o contrato.');
+    }
+    if (next.charges.some(c => c.stallId === stallId && c.status === 'aberto')) {
+      throw new Error('Há aluguel em aberto deste box. Receba o aluguel antes de encerrar o contrato.');
+    }
+    const when = at || new Date().toISOString();
+    stall.status = 'inativo';
+    stall.endedAt = when;
+    audit(next, `Contrato de ${stall.name} encerrado. Box ${pad(stall.box, 2)} livre.`, when);
+    return next;
+  }
+
+  function updatePark(state, input, at) {
+    const next = clone(state);
+    const park = next.park;
+    const name = String(input.name == null ? park.name : input.name).trim();
+    if (name.length < 2) throw new Error('Informe o nome do food park.');
+    const boxes = input.boxes == null || input.boxes === '' ? Number(park.boxes) : Math.floor(Number(input.boxes));
+    if (!(boxes >= 1 && boxes <= 60)) throw new Error('O food park precisa ter entre 1 e 60 boxes.');
+    const highest = next.stalls.filter(s => s.status === 'ativo').reduce((max, s) => Math.max(max, Number(s.box)), 0);
+    if (boxes < highest) throw new Error(`O box ${pad(highest, 2)} está ocupado. Encerre o contrato antes de reduzir a quantidade de boxes.`);
+    const fee = input.adminFeePercent == null || input.adminFeePercent === '' ? Number(park.adminFeePercent) : Number(input.adminFeePercent);
+    if (!(fee >= 0 && fee <= 100)) throw new Error('A taxa de administração precisa ficar entre 0 e 100%.');
+    const fees = Object.assign({}, park.fees);
+    Object.keys(fees).forEach(id => {
+      if (!input.fees || input.fees[id] == null || input.fees[id] === '') return;
+      const value = Number(input.fees[id]);
+      if (!(value >= 0 && value <= 20)) throw new Error('A taxa da maquininha precisa ficar entre 0 e 20%.');
+      fees[id] = value;
+    });
+    park.name = name;
+    if (input.city != null) park.city = String(input.city).trim();
+    if (input.cnpj != null) park.cnpj = String(input.cnpj).trim();
+    park.boxes = boxes;
+    park.adminFeePercent = fee;
+    park.fees = fees;
+    audit(next, 'Dados e taxas do food park atualizados.', at);
+    return next;
+  }
+
   function createRentCharge(state, stall, at) {
     const when = at || new Date().toISOString();
     const competence = ymOf(when);
@@ -544,6 +625,7 @@
         adminFee: reais(sumCents(monthSales, 'adminFee')),
         netStall: reais(sumCents(monthSales, 'netStall')),
         liability: reais(liability),
+        cashFee: reais(cashAdminFee),
         rentOpen: reais(rent),
         direction: net === 0 ? 'zerado' : net > 0 ? 'pagar_lojista' : 'receber_lojista',
         amount: reais(Math.abs(net)),
@@ -719,23 +801,28 @@
 
   function demo(now) {
     const clock = now ? new Date(now) : new Date();
-    const iso = clock.toISOString();
+    // Aceita a hora local do servidor ("2026-10-28T14:30:00") sem converter para UTC,
+    // para o "hoje" da demonstração ser o mesmo dia que aparece no painel.
+    const iso = typeof now === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(now) ? now : clock.toISOString();
+    const ym = iso.slice(0, 8);
+    const today = Number(iso.slice(8, 10));
+    const nowMinutes = Number(iso.slice(11, 13)) * 60 + Number(iso.slice(14, 16));
+    const stamp = (day, minutes) => `${ym}${pad(Math.min(day, today), 2)}T${pad(Math.floor(minutes / 60), 2)}:${pad(minutes % 60, 2)}:00`;
     let state = blank({
-      name: 'Food Park',
-      city: '',
+      name: 'Food Park Central',
+      city: 'Fortaleza, CE',
       cnpj: '',
       boxes: 8,
       adminFeePercent: 10
     });
     state.mode = 'demo';
-    state.park.name = 'Food Park Central';
-    state.park.city = 'A definir com a proprietária';
+    state.demoDay = iso.slice(0, 10);
     const catalog = [
-      ['Brasa & Burger', 'Marina Alves', '12.345.678/0001-90', 4200, [['Smash burger', 36], ['Batata rústica', 18], ['Milk-shake', 16], ['Combo brasa', 52]]],
-      ['Forno da Praça', 'Ricardo Lima', '23.456.789/0001-01', 4500, [['Pizza média', 48], ['Fatia', 14], ['Calzone', 32], ['Refrigerante', 8]]],
-      ['Açaí do Parque', 'Helena Dias', '34.567.890/0001-12', 2800, [['Açaí 500 ml', 24], ['Açaí 700 ml', 32], ['Tigela fitness', 28], ['Água de coco', 9]]],
-      ['Yakisoba House', 'Kenji Sato', '45.678.901/0001-23', 3900, [['Yakisoba frango', 34], ['Yakisoba misto', 39], ['Guioza', 22], ['Chá gelado', 8]]],
-      ['Doce Ponto', 'Camila Rocha', '56.789.012/0001-34', 2600, [['Churros', 16], ['Brownie', 14], ['Café', 8], ['Combo doce', 26]]]
+      ['Brasa & Burger', 'Marina Alves', '12.345.678/0001-90', 4200, [['Smash burger', 36, 'Lanches'], ['Batata rústica', 18, 'Porções'], ['Milk-shake', 16, 'Bebidas'], ['Combo brasa', 52, 'Combos']]],
+      ['Forno da Praça', 'Ricardo Lima', '23.456.789/0001-01', 4500, [['Pizza média', 48, 'Pizzas'], ['Fatia', 14, 'Pizzas'], ['Calzone', 32, 'Pizzas'], ['Refrigerante lata', 8, 'Bebidas', 150]]],
+      ['Açaí do Parque', 'Helena Dias', '34.567.890/0001-12', 2800, [['Açaí 500 ml', 24, 'Açaí'], ['Açaí 700 ml', 32, 'Açaí'], ['Tigela fitness', 28, 'Açaí'], ['Água de coco', 9, 'Bebidas', 150]]],
+      ['Yakisoba House', 'Kenji Sato', '45.678.901/0001-23', 3900, [['Yakisoba frango', 34, 'Pratos'], ['Yakisoba misto', 39, 'Pratos'], ['Guioza', 22, 'Porções'], ['Chá gelado', 8, 'Bebidas']]],
+      ['Doce Ponto', 'Camila Rocha', '56.789.012/0001-34', 2600, [['Churros', 16, 'Doces'], ['Brownie', 14, 'Doces'], ['Café', 8, 'Bebidas'], ['Combo doce', 26, 'Combos']]]
     ];
     catalog.forEach((row, index) => {
       state = createStall(state, {
@@ -746,47 +833,53 @@
         phone: '8599000000' + index,
         rent: row[3],
         feePercent: 10
-      }, iso.slice(0, 8) + '01T12:00:00.000Z');
+      }, stamp(1, 9 * 60));
       const stall = state.stalls[state.stalls.length - 1];
       row[4].forEach(product => {
-        state = addProduct(state, stall.id, { name: product[0], price: product[1], category: 'Cardápio', stock: null });
+        state = addProduct(state, stall.id, { name: product[0], price: product[1], category: product[2], stock: product[3] == null ? null : product[3] });
       });
     });
     state.charges.slice(0, 4).forEach(charge => {
-      state = payCharge(state, charge.id, 'pix', iso.slice(0, 8) + '08T15:00:00.000Z');
+      state = payCharge(state, charge.id, 'pix', stamp(8, 15 * 60));
     });
-    state = addBill(state, { direction: 'pagar', description: 'Energia das áreas comuns', category: 'energia', amount: 4180, due: iso.slice(0, 8) + '12' }, iso.slice(0, 8) + '05T12:00:00.000Z');
-    state = addBill(state, { direction: 'pagar', description: 'Água e esgoto', category: 'agua', amount: 960, due: iso.slice(0, 8) + '12' }, iso.slice(0, 8) + '05T12:10:00.000Z');
-    state = addBill(state, { direction: 'pagar', description: 'Divulgação de inauguração', category: 'marketing', amount: 1500, due: iso.slice(0, 8) + '20' }, iso.slice(0, 8) + '06T12:00:00.000Z');
-    state = addBill(state, { direction: 'pagar', description: 'Manutenção da praça de alimentação', category: 'manutencao', amount: 740, due: iso.slice(0, 8) + '18' }, iso.slice(0, 8) + '09T12:00:00.000Z');
+    state = addBill(state, { direction: 'pagar', description: 'Energia das áreas comuns', category: 'energia', amount: 4180, due: ym + '12' }, stamp(5, 12 * 60));
+    state = addBill(state, { direction: 'pagar', description: 'Água e esgoto', category: 'agua', amount: 960, due: ym + '12' }, stamp(5, 12 * 60 + 10));
+    state = addBill(state, { direction: 'pagar', description: 'Divulgação de inauguração', category: 'marketing', amount: 1500, due: ym + '20' }, stamp(6, 12 * 60));
+    state = addBill(state, { direction: 'pagar', description: 'Manutenção da praça de alimentação', category: 'manutencao', amount: 740, due: ym + '18' }, stamp(9, 12 * 60));
     const openBills = state.bills.filter(b => b.status === 'aberto');
-    state = payBill(state, openBills[0].id, 'pix', iso.slice(0, 8) + '12T16:00:00.000Z');
-    state = payBill(state, openBills[1].id, 'pix', iso.slice(0, 8) + '12T16:05:00.000Z');
-    state = payBill(state, state.bills.find(b => b.description.startsWith('Manutenção')).id, 'pix', iso.slice(0, 8) + '14T11:00:00.000Z');
+    state = payBill(state, openBills[0].id, 'pix', stamp(12, 16 * 60));
+    state = payBill(state, openBills[1].id, 'pix', stamp(12, 16 * 60 + 5));
+    state = payBill(state, state.bills.find(b => b.description.startsWith('Manutenção')).id, 'pix', stamp(14, 11 * 60));
 
-    state = openCash(state, { openingFloat: 300 }, dayOf(iso) + 'T11:00:00.000Z');
     const rand = mulberry32(20261016);
     const methods = ['pix', 'pix', 'credito', 'debito', 'dinheiro', 'pix', 'voucher'];
     const customers = ['Ana', 'Bruno', 'Carla', 'Diego', 'Fernanda', 'Gustavo', 'Helena', 'Igor', 'Julia', 'Balcão'];
-    for (let day = 1; day <= clock.getUTCDate(); day += 1) {
-      const count = day === clock.getUTCDate() ? 28 : 16 + Math.floor(rand() * 8);
-      for (let n = 0; n < count; n += 1) {
+    for (let day = 1; day <= today; day += 1) {
+      const isToday = day === today;
+      // Hoje só tem vendas até a hora atual, para nenhum pedido aparecer no futuro.
+      const start = isToday && nowMinutes < 13 * 60 ? Math.max(30, nowMinutes - 120) : 11 * 60;
+      const end = isToday ? Math.max(start + 1, nowMinutes - 1) : 22 * 60;
+      const count = isToday ? (nowMinutes < 13 * 60 ? 6 : 28) : 16 + Math.floor(rand() * 8);
+      state = openCash(state, { openingFloat: isToday ? 300 : 0 }, stamp(day, start - 30));
+      const times = Array.from({ length: count }, () => start + Math.floor(rand() * (end - start))).sort((a, b) => a - b);
+      times.forEach(minutes => {
         const stall = state.stalls[Math.floor(rand() * state.stalls.length)];
         const product = stall.products[Math.floor(rand() * stall.products.length)];
         const extra = stall.products[Math.floor(rand() * stall.products.length)];
         const items = [{ productId: product.id, qty: 1 + Math.floor(rand() * 2) }];
         if (extra && extra.id !== product.id) items.push({ productId: extra.id, qty: 1 });
-        const hour = 12 + Math.floor(rand() * 8);
-        const minute = Math.floor(rand() * 60);
-        const at = `${iso.slice(0, 8)}${pad(day, 2)}T${pad(hour, 2)}:${pad(minute, 2)}:00.000Z`;
         const result = commitSale(state, {
           stallId: stall.id,
           method: methods[Math.floor(rand() * methods.length)],
           items,
           customer: customers[Math.floor(rand() * customers.length)],
           table: String(1 + Math.floor(rand() * 24))
-        }, at);
+        }, stamp(day, minutes));
         state = result.state;
+      });
+      if (!isToday) {
+        const session = openSession(state);
+        state = closeCash(state, { counted: expectedByMethod(sessionSales(state, session.id)) }, stamp(day, 23 * 60 + 30));
       }
     }
     state.audit.unshift({ id: 'a-demo', at: iso, message: 'Operação de demonstração carregada para apresentação.' });
@@ -805,6 +898,10 @@
     createStall,
     addProduct,
     setProductActive,
+    updateProduct,
+    updateStall,
+    endStall,
+    updatePark,
     ensureMonthlyRents,
     payCharge,
     addBill,
