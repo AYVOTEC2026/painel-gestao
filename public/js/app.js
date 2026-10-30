@@ -1,5 +1,5 @@
 import { api, quandoPerderSessao } from './api.js';
-import { esc, icone, marcaSvg, iniciais, avisar, abrirModal, temModalAberto, fecharTodosModais } from './ui.js';
+import { esc, icone, marcaSelo, iniciais, avisar, abrirModal, temModalAberto, fecharTodosModais } from './ui.js';
 import { telaDeEntrada } from './entrada.js';
 import { AJUDA } from './ajuda-conteudo.js';
 import { ligarDicas } from './graficos.js';
@@ -115,7 +115,7 @@ function htmlLateral(telaAtual) {
   const link = t => `<a href="#/${t}" class="${t === telaAtual ? 'ativo' : ''}" ${t === telaAtual ? 'aria-current="page"' : ''}>${icone(TELAS[t].icone)}<span>${esc(TELAS[t].rotulo)}</span></a>`;
   return `
     <aside class="lateral" id="lateral">
-      <div class="marca"><div class="marca-selo">${marcaSvg}</div><div><b>${esc(sessao.parque.nome)}</b><small>AYVO Gestão</small></div></div>
+      <div class="marca"><div class="marca-selo">${marcaSelo}</div><div><b>${esc(sessao.parque.nome)}</b><small>AYVO Gestão</small></div></div>
       <nav class="nav" aria-label="Principal">
         ${grupos.map(g => `${grupos.length > 1 ? `<div class="nav-grupo">${esc(g.nome)}</div>` : ''}${g.telas.map(link).join('')}`).join('')}
       </nav>
@@ -154,6 +154,12 @@ function desenharTudo() {
   const shell = document.getElementById('shell');
   document.getElementById('abrirMenu').addEventListener('click', () => shell.classList.add('menu-aberto'));
   shell.addEventListener('click', e => { if (shell.classList.contains('menu-aberto') && e.target.closest('.nav a')) shell.classList.remove('menu-aberto'); });
+  shell.addEventListener('click', e => {
+    const mais = e.target.closest('[data-mostrar-tudo]');
+    if (!mais) return;
+    mais.closest('section').querySelectorAll('.linha-extra').forEach(tr => tr.classList.remove('oculto'));
+    mais.remove();
+  });
   shell.addEventListener('pointerdown', e => { if (shell.classList.contains('menu-aberto') && !e.target.closest('.lateral')) shell.classList.remove('menu-aberto'); });
   ligarDicas(document.body);
   desenharPagina();

@@ -1,4 +1,4 @@
-import { esc, icone, dinheiro, hora, dataCurta, plural, vazio, avisar, abrirModal, confirmar, campo, campoDinheiro, dica } from '../ui.js';
+import { esc, icone, dinheiro, hora, dataCurta, plural, vazio, avisar, abrirModal, confirmar, campo, campoDinheiro, dica, classeLinha, botaoMostrarTudo } from '../ui.js';
 import { abrirEntrada } from './parque.js';
 import { abrirCaixa, nomeForma, NOMES_AREA } from './comum.js';
 
@@ -109,7 +109,7 @@ function htmlMovimento(d) {
     <div class="bloco-cabeca"><div><h2>Movimento deste caixa</h2><p>Tudo o que entrou e saiu desde a abertura, de todas as áreas.</p></div></div>
     <div class="tabela-envolve"><table class="tabela">
       <thead><tr><th>Hora</th><th>O quê</th><th class="so-largo">Área</th><th>Forma</th><th class="num">Valor</th><th></th></tr></thead>
-      <tbody>${c.movimentos.map(m => `<tr class="${m.cancelada && m.sentido === 'entrada' ? 'apagada' : ''}">
+      <tbody>${c.movimentos.map((m, i) => `<tr class="${m.cancelada && m.sentido === 'entrada' ? 'apagada' : ''} ${classeLinha(i)}">
         <td class="num">${esc(hora(m.em))}</td>
         <td>${esc(m.descricao)}</td>
         <td class="so-largo">${esc(NOMES_AREA[m.area] || m.area)}</td>
@@ -118,6 +118,7 @@ function htmlMovimento(d) {
         <td class="acoes">${m.cancelavel ? `<button class="botao pequeno perigo" data-a="cancelar" data-id="${m.origemId}" data-desc="${esc(m.descricao)}" data-valor="${m.valor}">Cancelar</button>` : m.cancelada && m.sentido === 'entrada' ? '<span class="selo problema">Cancelada</span>' : ''}</td>
       </tr>`).join('')}</tbody>
     </table></div>
+    ${botaoMostrarTudo(c.movimentos.length)}
   </section>`;
 }
 

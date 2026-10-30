@@ -1,11 +1,11 @@
 import { api } from './api.js';
-import { esc, icone, marcaSvg, iniciais, campo, avisar } from './ui.js';
+import { esc, icone, iniciais, campo, avisar } from './ui.js';
 
 /* Ilustração da praça: contêineres com toldo e varal de luzes. */
 const CENA = `
 <svg class="entrada-cena" viewBox="0 0 720 230" role="img" aria-label="Fileira de contêineres de comida com toldos listrados e varal de luzes">
   <defs>
-    <pattern id="toldo" width="24" height="16" patternUnits="userSpaceOnUse"><rect width="12" height="16" fill="#f28c18"/><rect x="12" width="12" height="16" fill="#fff3e2"/></pattern>
+    <pattern id="toldo" width="24" height="16" patternUnits="userSpaceOnUse"><rect width="12" height="16" fill="#a05433"/><rect x="12" width="12" height="16" fill="#fff3e2"/></pattern>
   </defs>
   ${(() => {
     // Varal preso a cada 180px, com a curva do fio caindo entre os postes; as lâmpadas pendem do fio.
@@ -15,28 +15,28 @@ const CENA = `
     const lampadas = [];
     for (let x = 22; x < 720; x += 31) {
       const y = fio(x);
-      lampadas.push(`<line x1="${x}" y1="${y.toFixed(1)}" x2="${x}" y2="${(y + 7).toFixed(1)}" stroke="#3d6b64" stroke-width="1.2"/><circle cx="${x}" cy="${(y + 11).toFixed(1)}" r="4.5" fill="${x % 3 ? '#f6b25e' : '#ffd9a8'}"/>`);
+      lampadas.push(`<line x1="${x}" y1="${y.toFixed(1)}" x2="${x}" y2="${(y + 7).toFixed(1)}" stroke="#7a5c4b" stroke-width="1.2"/><circle cx="${x}" cy="${(y + 11).toFixed(1)}" r="4.5" fill="${x % 3 ? '#f6b25e' : '#ffd9a8'}"/>`);
     }
-    return `<polyline points="${pontos.join(' ')}" fill="none" stroke="#3d6b64" stroke-width="1.5"/>${lampadas.join('')}`;
+    return `<polyline points="${pontos.join(' ')}" fill="none" stroke="#7a5c4b" stroke-width="1.5"/>${lampadas.join('')}`;
   })()}
   <g>
-    <rect x="18" y="118" width="150" height="92" fill="#1f4c46"/><rect x="10" y="104" width="166" height="18" fill="url(#toldo)"/>
-    <rect x="34" y="136" width="70" height="38" rx="3" fill="#f6b25e" opacity=".9"/><rect x="116" y="140" width="36" height="70" fill="#163c37"/>
-    <rect x="190" y="98" width="128" height="112" fill="#2a5c55"/><rect x="182" y="84" width="144" height="18" fill="url(#toldo)"/>
-    <rect x="204" y="116" width="100" height="44" rx="3" fill="#ffd9a8" opacity=".9"/><rect x="230" y="172" width="48" height="38" fill="#1f4c46"/>
-    <rect x="340" y="126" width="168" height="84" fill="#1f4c46"/><rect x="332" y="112" width="184" height="18" fill="url(#toldo)"/>
-    <rect x="356" y="144" width="88" height="34" rx="3" fill="#f6b25e" opacity=".9"/><rect x="456" y="148" width="36" height="62" fill="#163c37"/>
-    <rect x="530" y="106" width="132" height="104" fill="#2a5c55"/><rect x="522" y="92" width="148" height="18" fill="url(#toldo)"/>
-    <rect x="546" y="124" width="100" height="40" rx="3" fill="#ffd9a8" opacity=".9"/><rect x="574" y="176" width="44" height="34" fill="#1f4c46"/>
-    <rect x="684" y="132" width="60" height="78" fill="#1f4c46"/><rect x="676" y="118" width="70" height="18" fill="url(#toldo)"/>
+    <rect x="18" y="118" width="150" height="92" fill="#4a372d"/><rect x="10" y="104" width="166" height="18" fill="url(#toldo)"/>
+    <rect x="34" y="136" width="70" height="38" rx="3" fill="#f6b25e" opacity=".9"/><rect x="116" y="140" width="36" height="70" fill="#3a2a22"/>
+    <rect x="190" y="98" width="128" height="112" fill="#5e463a"/><rect x="182" y="84" width="144" height="18" fill="url(#toldo)"/>
+    <rect x="204" y="116" width="100" height="44" rx="3" fill="#ffd9a8" opacity=".9"/><rect x="230" y="172" width="48" height="38" fill="#4a372d"/>
+    <rect x="340" y="126" width="168" height="84" fill="#4a372d"/><rect x="332" y="112" width="184" height="18" fill="url(#toldo)"/>
+    <rect x="356" y="144" width="88" height="34" rx="3" fill="#f6b25e" opacity=".9"/><rect x="456" y="148" width="36" height="62" fill="#3a2a22"/>
+    <rect x="530" y="106" width="132" height="104" fill="#5e463a"/><rect x="522" y="92" width="148" height="18" fill="url(#toldo)"/>
+    <rect x="546" y="124" width="100" height="40" rx="3" fill="#ffd9a8" opacity=".9"/><rect x="574" y="176" width="44" height="34" fill="#4a372d"/>
+    <rect x="684" y="132" width="60" height="78" fill="#4a372d"/><rect x="676" y="118" width="70" height="18" fill="url(#toldo)"/>
   </g>
-  <rect x="0" y="210" width="720" height="20" fill="#0d2724"/>
+  <rect x="0" y="210" width="720" height="20" fill="#241a15"/>
 </svg>`;
 
 function arte(titulo, texto) {
   return `
     <section class="entrada-arte">
-      <div class="marca"><div class="marca-selo">${marcaSvg}</div><div><b>AYVO Gestão</b><small>Food park e lazer</small></div></div>
+      <img class="entrada-logo" src="/marca/pepama-logo.png" alt="Pepama Food Park">
       <div class="entrada-texto">
         <h1>${esc(titulo)}</h1>
         <p>${esc(texto)}</p>

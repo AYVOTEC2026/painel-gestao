@@ -1,4 +1,4 @@
-import { esc, icone, dinheiro, dinheiroCurto, dataCurta, hora, mesNome, plural, selo, vazio, tamanhoArquivo, avisar, abrirModal, confirmar, campo, campoDinheiro, zonaDeArquivos } from '../ui.js';
+import { esc, icone, dinheiro, dinheiroCurto, dataCurta, hora, mesNome, plural, selo, vazio, tamanhoArquivo, avisar, abrirModal, confirmar, campo, campoDinheiro, zonaDeArquivos, classeLinha, botaoMostrarTudo } from '../ui.js';
 import { api } from '../api.js';
 import { colunas, barras, verNumeros } from '../graficos.js';
 import { abas, abaAtual, seletorMes, fatos, campoForma, nomeForma, NOMES_AREA, ACEITA_ARQUIVOS, enviarArquivos, zonaDaNota, ligarZonaDaNota } from './comum.js';
@@ -195,14 +195,14 @@ function extrato(d) {
         <div class="chips" role="group" aria-label="Filtrar extrato">${[['todos', 'Tudo'], ['entradas', 'Entradas'], ['saidas', 'Saídas']].map(([id, nome]) => `<button type="button" class="chip ${filtroExtrato === id ? 'ativo' : ''}" data-filtro="${id}" aria-pressed="${filtroExtrato === id}">${nome}</button>`).join('')}</div></div>
       ${lista.length ? `<div class="tabela-envolve"><table class="tabela">
         <thead><tr><th>Quando</th><th>Descrição</th><th class="so-largo">Área</th><th class="so-largo">Forma</th><th class="num">Valor</th></tr></thead>
-        <tbody>${lista.slice(0, 300).map(m => `<tr>
+        <tbody>${lista.slice(0, 300).map((m, i) => `<tr class="${classeLinha(i)}">
           <td class="num">${esc(dataCurta(m.em))} ${esc(hora(m.em))}</td>
           <td>${esc(m.descricao)}<small>${esc(m.por)}</small></td>
           <td class="so-largo">${esc(NOMES_AREA[m.area] || m.area)}</td>
           <td class="so-largo">${esc(nomeForma(d.formas, m.forma))}</td>
-          <td class="num ${m.sentido === 'saida' ? 'saida' : 'entrada'}"><b>${m.sentido === 'saida' ? '− ' : '+ '}${esc(dinheiro(m.valor))}</b></td>
+          <td class="num ${m.sentido === 'saida' ? 'saida' : ''}"><b>${m.sentido === 'saida' ? '− ' : '+ '}${esc(dinheiro(m.valor))}</b></td>
         </tr>`).join('')}</tbody>
-      </table></div>${lista.length > 300 ? '<p class="nota">Mostrando os 300 mais recentes. O mês completo está no extrato para o contador.</p>' : ''}` : '<p class="nota">Nada aqui neste mês.</p>'}
+      </table></div>${botaoMostrarTudo(Math.min(lista.length, 300))}${lista.length > 300 ? '<p class="nota">Mostrando os 300 mais recentes. O mês completo está no extrato para o contador.</p>' : ''}` : '<p class="nota">Nada aqui neste mês.</p>'}
     </section>`;
 }
 

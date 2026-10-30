@@ -108,7 +108,15 @@ const P = {
 export const icone = (nome, extra = '') =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ${extra}>${P[nome] || ''}</svg>`;
 
-export const marcaSvg = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3.5 7h17l-1.2 3H4.7z"/><path d="M5 11h14v9H5z" opacity=".95"/><path d="M10 14.5h4V20h-4z" fill="#f28c18"/></svg>';
+// Tabelas longas mostram só as primeiras linhas; o botão (tratado em app.js) revela o resto.
+export const LINHAS_VISIVEIS = 10;
+export function classeLinha(i) { return i >= LINHAS_VISIVEIS ? 'linha-extra oculto' : ''; }
+export function botaoMostrarTudo(total) {
+  return total > LINHAS_VISIVEIS ? `<button type="button" class="botao fantasma pequeno mostrar-tudo" data-mostrar-tudo>Mostrar todas as ${total} linhas</button>` : '';
+}
+
+// Selo da marca do cliente (Pepama Food Park), usado no menu lateral.
+export const marcaSelo = '<img src="/marca/pepama-icone.png" alt="">';
 
 /** "?" ao lado de um termo, com a explicação ao passar o mouse ou tocar. */
 export const dica = texto =>
