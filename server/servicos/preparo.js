@@ -11,9 +11,9 @@ const { gerarAlugueis } = require('./locacoes');
  */
 async function prepararParque(banco, { parqueId, agora, senhaDemo, simular = false }) {
   const demo = require('../demo');
-  const p = (await banco.query('select modo, demo_dia, demo_simulado_em from parques where id = $1', [parqueId])).rows[0];
+  const p = (await banco.query('select modo, demo_dia, demo_versao, demo_simulado_em from parques where id = $1', [parqueId])).rows[0];
   if (!p) return;
-  if (p.modo === 'demo' && p.demo_dia !== D.diaDe(agora)) {
+  if (p.modo === 'demo' && (p.demo_dia !== D.diaDe(agora) || p.demo_versao !== demo.VERSAO_DEMO)) {
     await demo.recriarDemo(banco, { parqueId, agora, senha: senhaDemo, somenteSeVelha: true });
     return;
   }

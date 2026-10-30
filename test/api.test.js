@@ -5,7 +5,7 @@ const assert = require('node:assert');
 const { conectar } = require('../server/persistencia/banco');
 const { criarApp } = require('../server/app');
 const { lerConfig } = require('../server/config');
-const { semearDemo } = require('../server/demo');
+const { semearDemo, VERSAO_DEMO } = require('../server/demo');
 const D = require('../server/dominio/datas');
 const { lerZip } = require('./ler-zip');
 
@@ -61,6 +61,11 @@ test('API do complexo no Postgres', { skip: !URL_TESTE && 'defina TEST_DATABASE_
     assert.strictEqual((await dona('POST', '/api/entrar', { email: 'proprietaria@foodpark.demo', senha: 'demo1234' })).status, 200);
     assert.strictEqual((await recepcao('POST', '/api/entrar', { email: 'caixa@foodpark.demo', senha: 'demo1234' })).corpo.usuario.inicio, 'pdv');
     assert.strictEqual((await monitor('POST', '/api/entrar', { email: 'monitor@foodpark.demo', senha: 'demo1234' })).corpo.usuario.inicio, 'parque');
+
+    // Demonstração feita por um gerador mais antigo se refaz sozinha na próxima tela, sem tirar ninguém do sistema.
+    await banco.query('update parques set demo_versao = 0');
+    assert.strictEqual((await dona('GET', '/api/tela/painel')).status, 200);
+    assert.strictEqual((await banco.query('select demo_versao from parques')).rows[0].demo_versao, VERSAO_DEMO);
 
     // Cada perfil só vê o que é dele.
     assert.strictEqual((await monitor('GET', '/api/tela/pdv')).status, 403);

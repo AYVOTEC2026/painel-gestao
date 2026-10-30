@@ -504,15 +504,21 @@ async function apagarOperacao(tx, parqueId) {
   }
 }
 
+/** Sobe quando a demonstração ganha dados novos: a de hoje se refaz no próximo ciclo. */
+const VERSAO_DEMO = 1;
+
 /** Apaga tudo do complexo e monta a demonstração de hoje, mantendo o nome e os acessos. */
 async function recriarDemo(banco, { parqueId, agora, senha, somenteSeVelha = false }) {
   await banco.transacao(async tx => {
-    const atual = await tx.query('select demo_dia from parques where id = $1 for update', [parqueId]);
+    const atual = (await tx.query('select demo_dia, demo_versao from parques where id = $1 for update', [parqueId])).rows[0];
     // Duas telas abertas na virada do dia: a segunda espera a primeira e não refaz o trabalho.
-    if (somenteSeVelha && atual.rows[0] && atual.rows[0].demo_dia === D.diaDe(agora)) return;
+    if (somenteSeVelha && atual && atual.demo_dia === D.diaDe(agora) && atual.demo_versao === VERSAO_DEMO) return;
     await apagarOperacao(tx, parqueId);
     const config = await gerarDemo(tx, parqueId, agora);
-    await tx.query('update parques set config = $2, modo = $3, demo_dia = $4, demo_simulado_em = $5 where id = $1', [parqueId, JSON.stringify(config), 'demo', D.diaDe(agora), agora]);
+    await tx.query(
+      'update parques set config = $2, modo = $3, demo_dia = $4, demo_simulado_em = $5, demo_versao = $6 where id = $1',
+      [parqueId, JSON.stringify(config), 'demo', D.diaDe(agora), agora, VERSAO_DEMO]
+    );
     if (senha) await garantirUsuariosDemo(tx, parqueId, senha);
     await inserir(tx, 'historico', { parque_id: parqueId, usuario_nome: 'Sistema', acao: 'demo', resumo: 'Dados de demonstração preparados para hoje.' });
   });
@@ -557,4 +563,4 @@ async function semearDemo(banco, cfg, agora) {
   return true;
 }
 
-module.exports = { USUARIOS_DEMO, recriarDemo, simularParque, semearDemo, apagarOperacao, gerarDemo };
+module.exports = { USUARIOS_DEMO, VERSAO_DEMO, recriarDemo, simularParque, semearDemo, apagarOperacao, gerarDemo };
