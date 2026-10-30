@@ -1,32 +1,64 @@
 import { esc, icone, dinheiro, dataCurta, hora, plural, selo, vazio, avisar, abrirModal, campo, campoDinheiro } from '../ui.js';
-import { abas, abaAtual, seletorMes, fatos, campoForma, nomeForma, enviarArquivos, zonaDaNota, ligarZonaDaNota } from './comum.js';
+import { abas, abaAtual, seletorMes, fatos, campoForma, nomeForma, enviarArquivos, zonaDaNota, ligarZonaDaNota, PERIODOS, tempoDoAluguel, htmlAlugados } from './comum.js';
 
-const ABAS = ['loja', 'ingressos', 'vendas'];
+const ABAS = ['loja', 'aluguel', 'ingressos', 'vendas'];
 
+/**
+ * Cadastro do item. Produto da loja pode ser de venda (sai e não volta) ou de
+ * aluguel (sai e volta, cobrado por tempo); o PDV trata cada um de um jeito.
+ */
 function salvarProduto(ctx, p, tipoNovo) {
-  const tipo = p ? p.tipo : tipoNovo;
-  const ingresso = tipo === 'ingresso';
+  const inicial = p ? p.tipo : tipoNovo;
+  const ingresso = inicial === 'ingresso';
   const m = abrirModal({
-    titulo: p ? p.nome : ingresso ? 'Novo ingresso' : 'Novo produto',
+    titulo: p ? p.nome : ingresso ? 'Novo ingresso' : inicial === 'aluguel' ? 'Novo item para alugar' : 'Novo produto',
+    subtitulo: ingresso ? '' : 'Venda sai do estoque e não volta. Aluguel sai, volta e fica livre para o próximo cliente.',
+    largo: !ingresso,
     corpo: `<form class="grade-form">
+      ${ingresso ? '' : `<fieldset class="inteira escolhas-tipo">
+        <legend>Como este item sai do complexo?</legend>
+        <label class="escolha"><input type="radio" name="tipo" value="loja" ${inicial !== 'aluguel' ? 'checked' : ''}>${icone('loja')}<span><b>Venda</b><small>Sai e não volta. Ex.: bola, garrafa, bebida.</small></span></label>
+        <label class="escolha"><input type="radio" name="tipo" value="aluguel" ${inicial === 'aluguel' ? 'checked' : ''}>${icone('relogio')}<span><b>Aluguel</b><small>Sai e volta. Cobra por hora, por dia ou por uso. Ex.: raquete, guarda-sol.</small></span></label>
+      </fieldset>`}
       ${campo({ nome: 'nome', rotulo: 'Nome', valor: p ? p.nome : '', obrigatorio: true, classe: 'inteira', placeholder: ingresso ? 'Ex.: Day use adulto' : 'Ex.: Raquete de beach tennis' })}
-      ${campo({ nome: 'categoria', rotulo: 'Categoria', valor: p ? p.categoria : ingresso ? 'Day use' : '', placeholder: ingresso ? 'Day use' : 'Ex.: Raquetes, Bebidas' })}
+      ${campo({ nome: 'categoria', rotulo: 'Categoria', valor: p ? p.categoria : ingresso ? 'Day use' : '', placeholder: ingresso ? 'Day use' : 'Ex.: Raquetes, Bebidas, Praia' })}
       ${campoDinheiro({ nome: 'preco', rotulo: 'Preço', valor: p ? p.preco : '', obrigatorio: true })}
-      ${ingresso ? '' : `<label class="escolha inteira"><input type="checkbox" name="controlaEstoque" ${!p || p.controlaEstoque ? 'checked' : ''}><span><b>Controlar estoque</b><small>O PDV avisa e bloqueia quando acabar.</small></span></label>
-        <div class="grade-form inteira" data-estoque>
+      <div class="grade-form inteira" data-so="aluguel">
+        ${campo({ nome: 'periodo', rotulo: 'O preço vale', valor: p && p.periodo ? p.periodo : 'hora', opcoes: Object.entries(PERIODOS).map(([valor, texto]) => ({ valor, texto })), ajuda: 'Por hora e por dia, o PDV pergunta o tempo e calcula.' })}
+        ${campo({ nome: 'unidades', rotulo: 'Unidades que o complexo tem', tipo: 'number', valor: p ? p.estoque + (p.fora || 0) : 1, obrigatorio: true, extra: 'min="1"', ajuda: p && p.fora ? `${p.fora} com clientes agora.` : 'O PDV não aluga mais do que isso ao mesmo tempo.' })}
+      </div>
+      <div class="inteira" data-so="loja">
+        <label class="escolha"><input type="checkbox" name="controlaEstoque" ${!p || p.controlaEstoque ? 'checked' : ''}><span><b>Controlar estoque</b><small>O PDV avisa e bloqueia quando acabar.</small></span></label>
+        <div class="grade-form" data-estoque style="margin-top:14px">
           ${p ? '' : campo({ nome: 'estoque', rotulo: 'Quantidade agora', tipo: 'number', valor: 0, extra: 'min="0"' })}
           ${campo({ nome: 'estoqueMinimo', rotulo: 'Avisar quando chegar a', tipo: 'number', valor: p ? p.estoqueMinimo : 3, extra: 'min="0"', ajuda: 'Aparece no painel como estoque baixo.' })}
-        </div>`}
-      ${p ? `<label class="escolha inteira"><input type="checkbox" name="ativo" ${p.ativo ? 'checked' : ''}><span><b>À venda no PDV</b><small>Desmarque para tirar do caixa sem apagar o histórico.</small></span></label>` : ''}
+        </div>
+      </div>
+      ${p ? `<label class="escolha inteira"><input type="checkbox" name="ativo" ${p.ativo ? 'checked' : ''}><span><b>No PDV</b><small>Desmarque para tirar do caixa sem apagar o histórico.</small></span></label>` : ''}
     </form>`,
     botao: p ? 'Salvar' : 'Cadastrar',
-    aoEnviar: v => ctx.acao('salvar-produto', {
-      produtoId: p ? p.id : undefined, tipo, nome: v.nome, categoria: v.categoria, preco: v.preco,
-      controlaEstoque: v.controlaEstoque === 'on', estoque: v.estoque, estoqueMinimo: v.estoqueMinimo, ativo: p ? v.ativo === 'on' : true
-    }, p ? 'Produto atualizado.' : 'Cadastrado.')
+    aoEnviar: v => {
+      const tipo = ingresso ? 'ingresso' : v.tipo;
+      return ctx.acao('salvar-produto', {
+        produtoId: p ? p.id : undefined, tipo, nome: v.nome, categoria: v.categoria, preco: v.preco, periodo: v.periodo, unidades: v.unidades,
+        controlaEstoque: v.controlaEstoque === 'on', estoque: v.estoque, estoqueMinimo: v.estoqueMinimo, ativo: p ? v.ativo === 'on' : true
+      }, p ? 'Item atualizado.' : tipo === 'aluguel' ? 'Item cadastrado para alugar.' : 'Cadastrado.');
+    }
   });
-  const caixa = m.fundo.querySelector('[name=controlaEstoque]');
-  if (caixa) caixa.addEventListener('change', () => m.fundo.querySelector('[data-estoque]').classList.toggle('oculto', !caixa.checked));
+  const f = m.fundo;
+  // Mostra só os campos do tipo escolhido; os escondidos ficam desligados e não travam o envio.
+  const mostrar = () => {
+    const tipo = ingresso ? 'ingresso' : f.querySelector('[name=tipo]:checked').value;
+    f.querySelectorAll('[data-so]').forEach(grupo => {
+      const ligado = grupo.dataset.so === tipo;
+      grupo.classList.toggle('oculto', !ligado);
+      grupo.querySelectorAll('input, select').forEach(el => { el.disabled = !ligado; });
+    });
+    const caixa = f.querySelector('[name=controlaEstoque]');
+    f.querySelector('[data-estoque]').classList.toggle('oculto', !caixa.checked);
+  };
+  f.querySelectorAll('[name=tipo], [name=controlaEstoque]').forEach(el => el.addEventListener('change', mostrar));
+  mostrar();
 }
 
 function entradaEstoque(ctx, p) {
@@ -85,6 +117,26 @@ function ajustarEstoque(ctx, p) {
   });
 }
 
+function tabelaAluguel(d, lista) {
+  if (!lista.length) {
+    return vazio({ icone: 'relogio', titulo: 'Nenhum item para alugar', texto: 'Cadastre raquetes, guarda-sóis, cadeiras e bolas que saem e voltam. O PDV controla quem está com cada um.', botao: '<button type="button" class="botao primario" data-l="novo" data-tipo="aluguel">Cadastrar item para alugar</button>' });
+  }
+  return `<div class="tabela-envolve"><table class="tabela">
+    <thead><tr><th>Item</th><th class="num">Preço</th><th>Unidades</th><th class="num so-largo">Aluguéis no mês</th><th></th></tr></thead>
+    <tbody>${lista.map(p => {
+      const total = p.estoque + p.fora;
+      return `<tr class="${p.ativo ? '' : 'apagada'}">
+        <td><b>${esc(p.nome)}</b><small>${esc(p.categoria)}${p.ativo ? '' : ', fora do PDV'}</small></td>
+        <td class="num">${esc(dinheiro(p.preco))}<small>${esc(PERIODOS[p.periodo])}</small></td>
+        <td><div class="unidades" role="img" aria-label="${p.fora} de ${total} com clientes">${Array.from({ length: Math.min(total, 24) }, (_, i) => `<i class="${i < p.fora ? 'fora' : ''}"></i>`).join('')}</div>
+          <small>${p.estoque} ${p.estoque === 1 ? 'livre' : 'livres'}${p.fora ? `, ${p.fora} com clientes` : ''}</small></td>
+        <td class="num so-largo">${p.vendidosMes}<small>${esc(dinheiro(p.valorMes))}</small></td>
+        <td class="acoes"><button type="button" class="botao fantasma pequeno" data-l="editar" data-id="${p.id}" aria-label="Editar ${esc(p.nome)}">${icone('lapis')}</button></td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table></div>`;
+}
+
 function tabelaProdutos(lista, ingressos) {
   if (!lista.length) return vazio({ icone: ingressos ? 'pulseira' : 'loja', titulo: ingressos ? 'Nenhum ingresso cadastrado' : 'Nenhum produto cadastrado', texto: ingressos ? 'Cadastre o day use e outros ingressos para vender no PDV.' : 'Cadastre raquetes, bolas, acessórios e bebidas para vender no PDV.', botao: `<button type="button" class="botao primario" data-l="novo" data-tipo="${ingressos ? 'ingresso' : 'loja'}">Cadastrar</button>` });
   return `<div class="tabela-envolve"><table class="tabela">
@@ -109,17 +161,20 @@ export default {
   tela: 'loja',
   params: rota => ({ mes: rota.query.mes }),
   titulo: 'Loja e bilheteria',
-  descricao: 'Produtos da loja, ingressos e day use: preços, estoque e o que foi vendido no PDV.',
+  descricao: 'Produtos à venda, itens para alugar, ingressos e day use: preços, estoque e o que saiu no PDV.',
   acoesCabecalho: ctx => {
     const aba = abaAtual(ctx.rota, ABAS);
-    return aba === 'vendas' ? '' : `<button type="button" class="botao primario" data-l="novo" data-tipo="${aba === 'ingressos' ? 'ingresso' : 'loja'}">${icone('mais')}${aba === 'ingressos' ? 'Novo ingresso' : 'Novo produto'}</button>`;
+    const [tipo, rotulo] = { loja: ['loja', 'Novo produto'], aluguel: ['aluguel', 'Novo item para alugar'], ingressos: ['ingresso', 'Novo ingresso'] }[aba] || [];
+    return tipo ? `<button type="button" class="botao primario" data-l="novo" data-tipo="${tipo}">${icone('mais')}${rotulo}</button>` : '';
   },
 
   render(ctx) {
     const d = ctx.dados;
     const aba = abaAtual(ctx.rota, ABAS);
     const loja = d.produtos.filter(p => p.tipo === 'loja');
+    const aluguel = d.produtos.filter(p => p.tipo === 'aluguel');
     const ingressos = d.produtos.filter(p => p.tipo === 'ingresso');
+    const atrasados = d.alugados.filter(a => a.atrasado).length;
     const baixos = loja.filter(p => p.ativo && p.controlaEstoque && p.estoque <= p.estoqueMinimo);
     let conteudo;
     if (aba === 'vendas') {
@@ -128,21 +183,28 @@ export default {
           <thead><tr><th>Nº</th><th>Quando</th><th>Itens</th><th class="so-largo">Pagamento</th><th class="num">Total</th></tr></thead>
           <tbody>${d.vendas.map(v => `<tr class="${v.status === 'cancelada' ? 'apagada' : ''}">
             <td class="num">${esc(v.numero)}</td><td class="num">${esc(dataCurta(v.em))} ${esc(hora(v.em))}</td>
-            <td>${esc(v.itens.map(i => `${i.qtd}× ${i.nome}`).join(', '))}${v.status === 'cancelada' ? `<small>Cancelada: ${esc(v.motivo || '')}</small>` : v.desconto ? `<small>Desconto de ${esc(dinheiro(v.desconto))}</small>` : ''}</td>
+            <td>${esc(v.itens.map(i => `${i.qtd}× ${i.nome}${i.periodo ? ` (aluguel, ${tempoDoAluguel(i.periodo, i.periodos)})` : ''}`).join(', '))}${v.status === 'cancelada' ? `<small>Cancelada: ${esc(v.motivo || '')}</small>` : v.desconto ? `<small>Desconto de ${esc(dinheiro(v.desconto))}</small>` : ''}</td>
             <td class="so-largo">${esc(nomeForma(d.formas, v.forma))}</td><td class="num"><b>${esc(dinheiro(v.total))}</b></td>
           </tr>`).join('')}</tbody>
         </table></div>` : '<p class="nota">Nenhuma venda neste mês.</p>'}</section>`;
+    } else if (aba === 'aluguel') {
+      conteudo = `<section class="bloco">${tabelaAluguel(d, aluguel)}</section>
+        ${d.alugados.length ? `<section class="bloco">
+          <div class="bloco-cabeca"><div><h2>Com clientes agora</h2><p>${plural(d.alugados.length, 'aluguel', 'aluguéis')}${atrasados ? `, ${plural(atrasados, 'passou', 'passaram')} da hora de voltar` : ''}. A recepção registra a devolução no PDV.</p></div></div>
+          ${htmlAlugados(d.alugados, d.agora)}
+        </section>` : ''}`;
     } else {
       conteudo = `<section class="bloco">${tabelaProdutos(aba === 'ingressos' ? ingressos : loja, aba === 'ingressos')}</section>`;
     }
     return `
       ${fatos([
         { rotulo: 'Vendas no mês', valor: dinheiro(d.totais.valor), sub: plural(d.totais.vendas, 'venda no PDV', 'vendas no PDV') },
+        { rotulo: 'Alugados agora', valor: String(d.alugados.reduce((t, a) => t + a.qtd, 0)), sub: atrasados ? plural(atrasados, 'aluguel atrasado', 'aluguéis atrasados') : 'Nenhum atrasado', classe: atrasados ? 'negativo' : '' },
         { rotulo: 'Day use hoje', valor: String(d.dayUseHoje), sub: d.dayUseHoje === 1 ? 'ingresso vendido' : 'ingressos vendidos' },
         { rotulo: 'Estoque baixo', valor: String(baixos.length), sub: baixos.length ? baixos.slice(0, 2).map(p => p.nome).join(', ') : 'Tudo abastecido', classe: baixos.length ? 'negativo' : '' }
       ])}
       <div class="abas-linha">
-        ${abas('loja', aba, [['loja', 'Produtos da loja', baixos.length], ['ingressos', 'Ingressos e day use'], ['vendas', 'Vendas do mês']], aba === 'vendas' ? `?mes=${d.mes}` : '')}
+        ${abas('loja', aba, [['loja', 'Produtos à venda', baixos.length], ['aluguel', 'Itens para alugar', atrasados], ['ingressos', 'Ingressos e day use'], ['vendas', 'Vendas do mês']], aba === 'vendas' ? `?mes=${d.mes}` : '')}
         ${aba === 'vendas' ? seletorMes(d.mes, d.agora.slice(0, 7), 'loja/vendas') : ''}
       </div>
       ${conteudo}`;
@@ -151,6 +213,12 @@ export default {
   ligar(raiz, ctx) {
     // .pagina é recriada a cada desenho; inclui o botão do cabeçalho e o corpo.
     raiz.querySelector('.pagina').addEventListener('click', e => {
+      const devolver = e.target.closest('[data-devolver]');
+      if (devolver) {
+        devolver.classList.add('carregando');
+        ctx.acao('devolver-item', { itemId: Number(devolver.dataset.devolver) }, 'Devolução registrada.').catch(err => { avisar(err.message, 'erro'); devolver.classList.remove('carregando'); });
+        return;
+      }
       const alvo = e.target.closest('[data-l]');
       if (!alvo) return;
       const p = ctx.dadosAtuais().produtos.find(x => x.id === Number(alvo.dataset.id));

@@ -84,7 +84,7 @@ test('API do complexo no Postgres', { skip: !URL_TESTE && 'defina TEST_DATABASE_
     // PDV: venda com estoque, depois cancelamento devolve o estoque.
     const pdv = (await recepcao('GET', '/api/tela/pdv')).corpo;
     assert.ok(pdv.caixa, 'caixa aberto na demonstração');
-    const raquete = pdv.produtos.find(p => p.nome.includes('Raquete') && p.controlaEstoque);
+    const raquete = pdv.produtos.find(p => p.tipo === 'loja' && p.nome.includes('Raquete') && p.controlaEstoque);
     const dayUse = pdv.produtos.find(p => p.tipo === 'ingresso');
     const venda = await acao(recepcao, 'vender', { itens: [{ produtoId: raquete.id, qtd: 1 }, { produtoId: dayUse.id, qtd: 2 }], desconto: '10,00', forma: 'credito' });
     assert.strictEqual(venda.status, 200, JSON.stringify(venda.corpo));
@@ -94,6 +94,35 @@ test('API do complexo no Postgres', { skip: !URL_TESTE && 'defina TEST_DATABASE_
     assert.strictEqual((await acao(recepcao, 'cancelar-venda', { vendaId: venda.corpo.resultado.vendaId, motivo: 'Cliente desistiu' })).status, 200);
     loja = (await dona('GET', '/api/tela/loja')).corpo;
     assert.strictEqual(loja.produtos.find(p => p.id === raquete.id).estoque, raquete.estoque);
+
+    // Aluguel de equipamentos: o cadastro diz se o item é vendido ou alugado.
+    assert.strictEqual((await acao(dona, 'salvar-produto', { tipo: 'aluguel', nome: 'Raquete teste para alugar', preco: '20', unidades: 3 })).status, 400, 'aluguel diz como cobra');
+    const itemNovo = await acao(dona, 'salvar-produto', { tipo: 'aluguel', nome: 'Raquete teste para alugar', categoria: 'Raquetes', preco: '20', periodo: 'hora', unidades: 3 });
+    assert.strictEqual(itemNovo.status, 200, JSON.stringify(itemNovo.corpo));
+    const itemId = itemNovo.corpo.resultado.produtoId;
+    const alugar = extra => acao(recepcao, 'vender', { itens: [{ produtoId: itemId, qtd: 2, periodos: 2 }], forma: 'pix', ...extra });
+    assert.match((await alugar({})).corpo.erro, /nome de quem leva/);
+    const aluguel = await alugar({ cliente: 'Leandro Teste', telefone: '(85) 98888-0000' });
+    assert.strictEqual(aluguel.status, 200, JSON.stringify(aluguel.corpo));
+    const doItem = async () => (await recepcao('GET', '/api/tela/pdv')).corpo;
+    let pdvAluguel = await doItem();
+    assert.strictEqual(pdvAluguel.produtos.find(p => p.id === itemId).estoque, 1, 'duas das três unidades com o cliente');
+    const fora = pdvAluguel.alugados.find(a => a.produtoId === itemId);
+    assert.deepStrictEqual([fora.qtd, fora.cliente, fora.devolverAte, fora.atrasado], [2, 'Leandro Teste', '2026-10-28T17:20:00', false]);
+    assert.match((await alugar({ cliente: 'Outra pessoa' })).corpo.erro, /Só há 1 de Raquete teste para alugar livre/);
+    const vendaAluguel = (await dona('GET', '/api/tela/loja')).corpo.vendas.find(v => v.numero === String(aluguel.corpo.resultado.numero).padStart(4, '0'));
+    assert.strictEqual(vendaAluguel.total, 80, '2 raquetes por 2 horas a R$ 20');
+    assert.strictEqual((await acao(recepcao, 'devolver-item', { itemId: fora.id })).status, 200);
+    assert.strictEqual((await acao(recepcao, 'devolver-item', { itemId: fora.id })).status, 400, 'não devolve duas vezes');
+    assert.strictEqual((await doItem()).produtos.find(p => p.id === itemId).estoque, 3);
+    assert.strictEqual((await acao(recepcao, 'cancelar-venda', { vendaId: aluguel.corpo.resultado.vendaId, motivo: 'Teste de estorno' })).status, 200);
+    assert.strictEqual((await doItem()).produtos.find(p => p.id === itemId).estoque, 3, 'cancelar depois da devolução não conta a unidade duas vezes');
+    const segundo = await alugar({ cliente: 'Marina Teste' });
+    assert.strictEqual(segundo.status, 200, JSON.stringify(segundo.corpo));
+    assert.strictEqual((await acao(dona, 'salvar-produto', { produtoId: itemId, tipo: 'loja', nome: 'Raquete teste para alugar', preco: '20' })).status, 400, 'item com cliente não vira venda');
+    assert.strictEqual((await acao(dona, 'salvar-produto', { produtoId: itemId, tipo: 'aluguel', nome: 'Raquete teste para alugar', preco: '20', periodo: 'hora', unidades: 1 })).status, 400, 'total não fica menor que o que está fora');
+    assert.strictEqual((await acao(dona, 'salvar-produto', { produtoId: itemId, tipo: 'aluguel', nome: 'Raquete teste para alugar', preco: '20', periodo: 'hora', unidades: 5 })).status, 200);
+    assert.strictEqual((await doItem()).produtos.find(p => p.id === itemId).estoque, 3, '5 unidades, 2 com cliente');
 
     // Parque: pulseira de 1 hora, saída 80 minutos depois cobra 2 blocos de 15 min.
     const parque = (await monitor('GET', '/api/tela/parque')).corpo;
@@ -105,6 +134,13 @@ test('API do complexo no Postgres', { skip: !URL_TESTE && 'defina TEST_DATABASE_
     assert.strictEqual(saida.status, 200, JSON.stringify(saida.corpo));
     assert.strictEqual(saida.corpo.resultado.cobrado, 10);
     assert.strictEqual((await acao(monitor, 'saida-parque', { entradaId: entrada.corpo.resultado.entradaId })).status, 400);
+
+    // A raquete da Marina devia voltar às 17:20: às 17:30 o PDV e o painel avisam.
+    relogio = '2026-10-28T17:30:00';
+    const atrasada = (await doItem()).alugados.find(a => a.cliente === 'Marina Teste');
+    assert.strictEqual(atrasada.atrasado, true);
+    assert.ok((await dona('GET', '/api/tela/painel')).corpo.alertas.some(a => /passou da hora de voltar|passaram da hora de voltar/.test(a.titulo) && /Marina Teste/.test(a.texto)));
+    assert.strictEqual((await acao(recepcao, 'devolver-item', { itemId: atrasada.id })).status, 200);
 
     // Quadras: grupo fixo de 3 semanas e conflito de horário.
     let terca = D.somarDias(D.diaDe(relogio), 1);
@@ -222,6 +258,7 @@ test('API do complexo no Postgres', { skip: !URL_TESTE && 'defina TEST_DATABASE_
     assert.strictEqual(cont.equilibrado, true);
     assert.strictEqual(cont.totais.debitos, cont.totais.creditos);
     assert.ok(cont.dre.porArea.find(a => a.area === 'parque').valor > 0);
+    assert.ok(cont.dre.porArea.find(a => a.area === 'equipamentos').valor > 0, 'aluguel de equipamentos tem receita própria');
     for (const arq of ['lancamentos', 'dre', 'extrato', 'alugueis']) {
       const csv = await dona('GET', `/api/exportar/${arq}?mes=2026-10`);
       assert.strictEqual(csv.status, 200, arq);
@@ -230,6 +267,20 @@ test('API do complexo no Postgres', { skip: !URL_TESTE && 'defina TEST_DATABASE_
     const rel = (await dona('GET', '/api/tela/relatorios?meses=3')).corpo;
     assert.strictEqual(rel.porMes.length, 3);
     assert.ok(rel.quadras.length === 4);
+
+    // Mensagens do WhatsApp: a gestão edita o texto, o sistema confere as variáveis.
+    assert.match((await recepcao('GET', '/api/sessao')).corpo.parque.mensagens.quadra_reserva, /\{quadra\}/);
+    assert.strictEqual((await acao(recepcao, 'salvar-mensagem', { id: 'quadra_reserva', texto: 'Oi {nome}' })).status, 403);
+    assert.match((await acao(dona, 'salvar-mensagem', { id: 'quadra_reserva', texto: 'Oi {nmoe}, sua quadra é a {quadra}.' })).corpo.erro, /\{nmoe\} não existe/);
+    const texto = 'Oi, {nome}! Sua reserva: {quadra}, {data}, das {horario}.';
+    assert.strictEqual((await acao(dona, 'salvar-mensagem', { id: 'quadra_reserva', texto })).status, 200);
+    assert.strictEqual((await recepcao('GET', '/api/sessao')).corpo.parque.mensagens.quadra_reserva, texto);
+    const msgAdmin = (await dona('GET', '/api/tela/admin')).corpo.mensagens.find(m => m.id === 'quadra_reserva');
+    assert.deepStrictEqual([msgAdmin.texto, msgAdmin.editada], [texto, true]);
+    assert.strictEqual((await acao(dona, 'salvar-mensagem', { id: 'quadra_reserva', padrao: true })).status, 200);
+    assert.strictEqual((await recepcao('GET', '/api/sessao')).corpo.parque.mensagens.quadra_reserva, msgAdmin.padrao);
+    // A mensagem escrita sobrevive à troca para a operação real (conferido no fim do roteiro).
+    assert.strictEqual((await acao(dona, 'salvar-mensagem', { id: 'parque_tempo', texto: 'Oi, {nome}! O tempo de {crianca} acaba às {termina}.' })).status, 200);
 
     // Histórico guarda quem fez.
     const equipe = (await dona('GET', '/api/equipe')).corpo;
@@ -249,6 +300,7 @@ test('API do complexo no Postgres', { skip: !URL_TESTE && 'defina TEST_DATABASE_
     assert.strictEqual(vazio.boxes.total, 0);
     assert.strictEqual((await monitor('GET', '/api/tela/parque')).status, 401, 'acesso de demonstração desligado');
     assert.strictEqual((await anon('GET', '/api/publico')).corpo.demo, null);
+    assert.strictEqual((await dona('GET', '/api/sessao')).corpo.parque.mensagens.parque_tempo, 'Oi, {nome}! O tempo de {crianca} acaba às {termina}.');
     assert.strictEqual((await acao(dona, 'salvar-quadra', { nome: 'Quadra Central', modalidade: 'Beach tennis', precoHora: '120' })).status, 200);
   } finally {
     await new Promise(r => servidor.close(r));

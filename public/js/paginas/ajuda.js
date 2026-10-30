@@ -2,8 +2,8 @@ import { esc, icone } from '../ui.js';
 import { GLOSSARIO, ROTINA_DIA, ROTINA_MES, PERGUNTAS } from '../ajuda-conteudo.js';
 
 // Recepção e monitor veem só o que é do dia a dia deles.
-const TERMOS_EQUIPE = ['Pulseira', 'Tempo excedente', 'Day use', 'Grupo fixo', 'Fundo de troco', 'Sangria', 'Fechamento do caixa', 'Quebra de caixa'];
-const PERGUNTAS_EQUIPE = [0, 1, 2, 5];
+const TERMOS_EQUIPE = ['Pulseira', 'Tempo excedente', 'Day use', 'Item de aluguel', 'Devolução', 'Grupo fixo', 'Fundo de troco', 'Sangria', 'Fechamento do caixa', 'Quebra de caixa'];
+const PERGUNTAS_EQUIPE = [0, 1, 2, 5, 10];
 
 const roteiro = itens => `<ol class="roteiro">${itens.map(([t, d]) => `<li><b>${esc(t)}</b><p>${esc(d)}</p></li>`).join('')}</ol>`;
 

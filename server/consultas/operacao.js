@@ -8,13 +8,19 @@ const { r, hhmm, formas, dreDoMes, caixaAberto } = require('./comum');
 
 /* Telas do dia a dia: painel executivo, PDV, parque infantil e quadras. */
 
+/** Item alugado que está com um cliente: até quando deve voltar e se já passou da hora. */
+const linhaAlugado = (a, agora) => ({
+  id: a.id, vendaId: a.venda_id, produtoId: a.produto_id, nome: a.nome, qtd: a.qtd, periodos: a.periodos, cliente: a.cliente, telefone: a.telefone,
+  saiuEm: a.saiu_em, devolverAte: a.devolver_ate, atrasado: !!(a.devolver_ate && a.devolver_ate < agora), por: a.por
+});
+
 function linhaEntrada(e, agora, alerta) {
   const s = R.situacaoDoTempo({ entrada: e.entrada, agora, minutos: e.minutos, alerta });
   return {
     id: e.id, numero: e.numero, crianca: e.crianca, idade: e.idade, responsavel: e.responsavel, telefone: e.telefone,
     pulseira: e.pulseira, observacoes: e.observacoes, plano: e.plano, minutos: e.minutos, valor: r(e.valor), forma: e.forma,
     entrada: e.entrada, saida: e.saida, status: e.status, excedenteMinutos: e.excedente_minutos, excedenteValor: r(e.excedente_valor),
-    atendente: e.atendente, caixaId: e.caixa_id, motivo: e.motivo, ...s
+    atendente: e.atendente, caixaId: e.caixa_id, motivo: e.motivo, termina: e.minutos == null ? null : D.horaDe(D.somarMinutos(e.entrada, e.minutos)), ...s
   };
 }
 
@@ -103,7 +109,9 @@ async function painel(db, { parqueId, agora, config }) {
     const n = (pendenteAnterior ? pendenteAnterior.n : 0) + (pendenteAtual ? pendenteAtual.n : 0);
     alertas.push({ nivel: pendenteAnterior ? 'atencao' : 'info', titulo: `${n === 1 ? '1 despesa' : n + ' despesas'} sem nota fiscal`, texto: pendenteAnterior ? 'Há notas faltando do mês passado. Anexe para o contador fechar o mês.' : 'Anexe as notas para o pacote do contador sair completo.', rota: `financeiro/notas?mes=${alvo}`, botao: 'Anexar notas' });
   }
-  const estoque = (await db.query("select nome, estoque from produtos where parque_id = $1 and ativo and controla_estoque and estoque <= estoque_minimo order by estoque", [parqueId])).rows;
+  const atrasados = (await db.query("select nome, qtd, cliente from itens_alugados where parque_id = $1 and status = 'fora' and devolver_ate < $2 order by devolver_ate", [parqueId, agora])).rows;
+  if (atrasados.length) alertas.push({ nivel: 'atencao', titulo: `${atrasados.length === 1 ? '1 item alugado passou' : `${atrasados.length} itens alugados passaram`} da hora de voltar`, texto: atrasados.slice(0, 3).map(a => `${a.qtd}× ${a.nome} com ${a.cliente}`).join(', ') + '.', rota: 'pdv', botao: 'Ver no PDV' });
+  const estoque = (await db.query("select nome, estoque from produtos where parque_id = $1 and tipo = 'loja' and ativo and controla_estoque and estoque <= estoque_minimo order by estoque", [parqueId])).rows;
   if (estoque.length) alertas.push({ nivel: 'atencao', titulo: 'Estoque baixo na loja', texto: estoque.slice(0, 3).map(p => `${p.nome} (${p.estoque})`).join(', ') + '.', rota: 'loja', botao: 'Ver a loja' });
   const caucoes = (await db.query("select count(*)::int as n from contratos where parque_id = $1 and status = 'ativo' and caucao_status = 'pendente'", [parqueId])).rows[0].n;
   if (caucoes) alertas.push({ nivel: 'info', titulo: `${caucoes === 1 ? '1 caução' : caucoes + ' cauções'} a receber`, texto: 'Contratos com caução combinada que ainda não entrou.', rota: 'boxes/contratos', botao: 'Ver contratos' });
@@ -159,9 +167,11 @@ async function pdv(db, { parqueId, agora, config }) {
     };
   }
   const fechamentos = (await db.query('select * from caixas where parque_id = $1 and fechado_em is not null order by fechado_em desc limit 10', [parqueId])).rows;
+  const alugados = (await db.query("select * from itens_alugados where parque_id = $1 and status = 'fora' order by devolver_ate nulls last, saiu_em", [parqueId])).rows;
   return {
     agora,
-    produtos: produtos.map(p => ({ id: p.id, tipo: p.tipo, nome: p.nome, categoria: p.categoria, preco: r(p.preco), controlaEstoque: p.controla_estoque, estoque: p.estoque })),
+    produtos: produtos.map(p => ({ id: p.id, tipo: p.tipo, nome: p.nome, categoria: p.categoria, preco: r(p.preco), periodo: p.periodo, controlaEstoque: p.controla_estoque, estoque: p.estoque })),
+    alugados: alugados.map(a => linhaAlugado(a, agora)),
     caixa: sessao,
     planos: config.parque.planos.map(p => ({ ...p, preco: r(p.preco) })),
     taxas: config.taxas,
@@ -246,4 +256,4 @@ async function quadras(db, { parqueId, agora, config, params }) {
   };
 }
 
-module.exports = { painel, pdv, parque, quadras, C };
+module.exports = { painel, pdv, parque, quadras, linhaAlugado, C };

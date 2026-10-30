@@ -1,5 +1,7 @@
 'use strict';
 
+const { editadas } = require('./mensagens');
+
 /*
  * Configurações do complexo que mudam pouco (ficam em parques.config).
  * Valores em dinheiro em centavos; percentuais como número (1.99 = 1,99%).
@@ -39,7 +41,8 @@ function completar(config) {
     parque: Object.assign({}, PADRAO.parque, c.parque, {
       planos: Array.isArray(c.parque && c.parque.planos) && c.parque.planos.length ? c.parque.planos : PADRAO.parque.planos
     }),
-    espacos: Array.isArray(c.espacos) && c.espacos.length ? c.espacos : PADRAO.espacos
+    espacos: Array.isArray(c.espacos) && c.espacos.length ? c.espacos : PADRAO.espacos,
+    mensagens: editadas(c.mensagens)
   };
 }
 

@@ -18,13 +18,28 @@ Cada tela tem um botão **Como funciona?** com a explicação daquela tela. A p�
 
 - **Boxes**: contêineres e quiosques alugados para outras empresas. Contrato com o arquivo assinado anexado (PDF ou foto), aluguel lançado sozinho todo mês com o vencimento combinado, cobranças avulsas (energia do medidor), caução, inadimplência com dias de atraso e cobrança pelo WhatsApp.
 - **Parque infantil**: a venda da pulseira cadastra a criança e o responsável e começa a contar o tempo na entrega. A tela mostra quem precisa sair primeiro; na saída, o excedente é calculado pela regra configurada (tolerância e blocos de minutos).
-- **PDV**: o caixa da recepção. Vende produtos da loja e ingressos de day use, calcula o troco, vende pulseira pelo atalho e fecha o caixa conferindo cada forma de pagamento.
-- **Loja e bilheteria**: cadastro, preços e estoque (com aviso de estoque mínimo). A entrada de mercadoria vira despesa de compra, com a nota fiscal anexada.
+- **PDV**: o caixa da recepção. Vende produtos da loja e ingressos de day use, aluga equipamentos, calcula o troco, vende pulseira pelo atalho e fecha o caixa conferindo cada forma de pagamento.
+- **Loja e bilheteria**: cadastro, preços e estoque (com aviso de estoque mínimo). Cada produto é **de venda** (sai e não volta) ou **de aluguel** (sai e volta, cobrado por hora, por dia ou por uso). A entrada de mercadoria vira despesa de compra, com a nota fiscal anexada.
 - **Quadras**: agenda do dia em grade, reserva por toque no horário livre, grupos fixos semanais, recebimento e a lista do que ficou a receber.
 - **Eventos e festas**: orçamento, sinal que confirma a data, pagamentos, saldo, contrato anexado.
 - **Financeiro**: extrato de tudo o que entrou e saiu, contas a pagar e a receber, fechamentos de caixa e as notas fiscais das despesas.
 - **Contabilidade**: resultado do mês por área, saldos, livro contábil e o pacote do contador.
 - **Relatórios**: resultado mês a mês, receita de cada área, horários de pico do parque, ocupação das quadras e recebimento dos aluguéis.
+
+## Aluguel de equipamentos
+
+Raquete, guarda-sol, cadeira e bola que saem e voltam. No cadastro, o item de aluguel tem o preço por hora, por dia ou por uso e o total de unidades que o complexo tem.
+
+- **No PDV**, aba Aluguel: a recepção escolhe o item, o tempo (1 a 8 horas, 1 a 7 dias) e escreve quem leva, com o WhatsApp opcional. O valor sai do preço vezes unidades vezes tempo, e o sistema marca a hora de devolver: horas contadas da saída; diária até o fechamento do complexo.
+- **Itens alugados fora** mostra quem está com cada item, até quando e quem passou da hora, com o botão do WhatsApp e o **Devolvido**, que libera a unidade.
+- O PDV não aluga mais unidades do que estão livres. Cancelar a venda devolve à prateleira só o que ainda estava com o cliente.
+- O Painel avisa os itens que passaram da hora de voltar. A receita entra numa conta própria, **Aluguel de equipamentos**, no resultado e nos relatórios.
+
+## Mensagens do WhatsApp
+
+Todos os botões de WhatsApp do sistema abrem a conversa com uma mensagem pronta, e a gestão escolhe o texto em **Administração > Mensagens**: lembrete e cobrança de aluguel do box, renovação de contrato, orçamento e lembrete de evento (com ou sem saldo), confirmação de reserva de quadra, aviso do fim do tempo no parque e devolução de item alugado.
+
+Cada mensagem tem variáveis, como `{nome}`, `{valor}` e `{vencimento}`, que viram os dados da pessoa na hora de enviar. O editor mostra uma prévia com dados de exemplo e deixa testar no próprio WhatsApp. O servidor recusa variável que não existe naquela mensagem. Só o texto editado é salvo; quem não mexe continua recebendo o texto padrão atualizado. O catálogo fica em [server/dominio/mensagens.js](server/dominio/mensagens.js).
 
 ## Notas fiscais e o pacote do contador
 
@@ -92,13 +107,13 @@ A demonstração tem 10 boxes (8 alugados, um inadimplente e um contrato termina
 1. Ela entra como **Proprietária** e clica em **Começar operação real** (na faixa do topo ou em Administração > Demonstração).
 2. Informa o nome do complexo e cria o **próprio acesso**.
 3. O sistema apaga os dados fictícios, desliga os acessos de demonstração e a deixa logada com a conta nova.
-4. Em **Administração** ela cadastra as quadras, os tempos e preços do parque, os espaços de eventos e a equipe; em **Boxes**, os contêineres e contratos; em **Loja e bilheteria**, os produtos e o day use.
+4. Em **Administração** ela cadastra as quadras, os tempos e preços do parque, os espaços de eventos, a equipe e o texto das mensagens do WhatsApp; em **Boxes**, os contêineres e contratos; em **Loja e bilheteria**, os produtos de venda, os itens de aluguel e o day use.
 
 ## Como o dinheiro é contabilizado
 
 As regras ficam em [server/dominio/contabil.js](server/dominio/contabil.js), em partidas dobradas: cada operação grava débitos e créditos iguais, e o servidor recusa gravar qualquer operação que não feche.
 
-- **Receitas por área**: aluguel dos boxes, cobranças aos locatários, multas de atraso, parque infantil, loja, bilheteria e day use, quadras, eventos, outras.
+- **Receitas por área**: aluguel dos boxes, cobranças aos locatários, multas de atraso, parque infantil, loja, aluguel de equipamentos, bilheteria e day use, quadras, eventos, outras.
 - **Aluguel** é receita do mês a que pertence (competência), lançado no início do mês; o recebimento baixa o "aluguéis a receber". O que fica em aberto depois do vencimento é a inadimplência.
 - **Venda no cartão** separa a taxa da maquininha como despesa; o líquido fica em "cartões a receber".
 - **Caução** é dinheiro do locatário guardado pelo complexo (passivo), não receita.

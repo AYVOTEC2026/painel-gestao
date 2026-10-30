@@ -1,4 +1,5 @@
-import { esc, icone, dinheiro, hora, duracao, plural, telefone, linkWhatsapp, vazio, avisar, abrirModal, campo } from '../ui.js';
+import { esc, icone, dinheiro, hora, duracao, plural, telefone, vazio, avisar, abrirModal, campo } from '../ui.js';
+import { zap, conversa, primeiroNome } from '../mensagens.js';
 import { campoForma, nomeForma, abrirCaixa, avisoCaixaFechado } from './comum.js';
 
 /* ------------------------------------------------------------- relógio */
@@ -102,13 +103,16 @@ function abrirCancelamento(ctx, e) {
 
 function cartao(e, cfg, podeCancelar) {
   const fone = telefone(e.telefone);
-  const zap = linkWhatsapp(e.telefone, `Olá, ${e.responsavel.split(' ')[0]}! Aqui é do parque infantil. O tempo do(a) ${e.crianca.split(' ')[0]} está terminando.`);
+  // Pulseira sem limite (dia livre) não tem hora para acabar: abre só a conversa.
+  const link = e.termina
+    ? zap('parque_tempo', e.telefone, { nome: primeiroNome(e.responsavel), crianca: primeiroNome(e.crianca), termina: e.termina, pulseira: e.plano })
+    : conversa(e.telefone, e.responsavel);
   return `<article class="crianca" data-id="${e.id}">
     <div data-tempo="${e.id}">${htmlTempo(e, cfg.alerta)}</div>
     <div class="crianca-dados">
       <h3>${esc(e.crianca)}${e.idade != null ? `<small>, ${e.idade} ${e.idade === 1 ? 'ano' : 'anos'}</small>` : ''}</h3>
       <p>${esc(e.plano)}, entrou às ${esc(hora(e.entrada))}${e.pulseira ? `, pulseira ${esc(e.pulseira)}` : ''}</p>
-      <p>${esc(e.responsavel)}${fone ? `, ${esc(fone)}` : ''}${zap ? ` <a class="link-zap" href="${esc(zap)}" target="_blank" rel="noopener" aria-label="Chamar ${esc(e.responsavel)} no WhatsApp">${icone('whatsapp')}</a>` : ''}</p>
+      <p>${esc(e.responsavel)}${fone ? `, ${esc(fone)}` : ''}${link ? ` <a class="link-zap" href="${esc(link)}" target="_blank" rel="noopener" aria-label="Chamar ${esc(e.responsavel)} no WhatsApp">${icone('whatsapp')}</a>` : ''}</p>
       ${e.observacoes ? `<p class="aviso-crianca">${icone('alerta')}<span>${esc(e.observacoes)}</span></p>` : ''}
     </div>
     <div class="crianca-acoes">

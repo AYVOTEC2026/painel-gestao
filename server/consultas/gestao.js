@@ -8,6 +8,8 @@ const { TIPOS_UNIDADE } = require('../servicos/locacoes');
 const { NOMES_CATEGORIA, DOCUMENTOS } = require('../servicos/financeiro');
 const { despesasDoMes, documentacao } = require('./pacote');
 const { r, hhmm, formas, somasDoLivro, dreDoMes, intervaloDoMes } = require('./comum');
+const { linhaAlugado } = require('./operacao');
+const M = require('../dominio/mensagens');
 
 const mesDoParametro = (params, agora) => (D.mesValido(params.mes) ? params.mes : D.mesDe(agora));
 
@@ -125,7 +127,8 @@ async function loja(db, { parqueId, agora, params }) {
   const [ini, fim] = intervaloDoMes(mes);
   const produtos = (await db.query('select * from produtos where parque_id = $1 order by tipo, ativo desc, categoria, nome', [parqueId])).rows;
   const vendidos = (await db.query(
-    `select (i->>'produtoId')::int as id, sum((i->>'qtd')::int) as qtd, sum((i->>'qtd')::int * (i->>'preco')::bigint) as valor
+    `select (i->>'produtoId')::int as id, sum((i->>'qtd')::int) as qtd,
+            sum((i->>'qtd')::int * coalesce((i->>'periodos')::int, 1) * (i->>'preco')::bigint) as valor
        from vendas v, jsonb_array_elements(v.itens) i
       where v.parque_id = $1 and v.status = 'paga' and v.em >= $2 and v.em < $3 group by 1`,
     [parqueId, ini, fim]
@@ -142,14 +145,18 @@ async function loja(db, { parqueId, agora, params }) {
     [parqueId, ini, fim]
   )).rows[0];
   const porId = new Map(vendidos.map(v => [v.id, v]));
+  const alugados = (await db.query("select * from itens_alugados where parque_id = $1 and status = 'fora' order by devolver_ate nulls last, saiu_em", [parqueId])).rows;
+  const fora = new Map();
+  alugados.forEach(a => fora.set(a.produto_id, (fora.get(a.produto_id) || 0) + a.qtd));
   return {
     agora,
     mes,
     dayUseHoje: Number(dayUseHoje),
+    alugados: alugados.map(a => linhaAlugado(a, agora)),
     totais: { vendas: totais.n, valor: r(totais.total) },
     produtos: produtos.map(p => ({
-      id: p.id, tipo: p.tipo, nome: p.nome, categoria: p.categoria, preco: r(p.preco), controlaEstoque: p.controla_estoque,
-      estoque: p.estoque, estoqueMinimo: p.estoque_minimo, ativo: p.ativo,
+      id: p.id, tipo: p.tipo, nome: p.nome, categoria: p.categoria, preco: r(p.preco), periodo: p.periodo, controlaEstoque: p.controla_estoque,
+      estoque: p.estoque, estoqueMinimo: p.estoque_minimo, ativo: p.ativo, fora: fora.get(p.id) || 0,
       vendidosMes: porId.get(p.id) ? Number(porId.get(p.id).qtd) : 0, valorMes: porId.get(p.id) ? r(porId.get(p.id).valor) : 0
     })),
     vendas: vendas.map(v => ({
@@ -380,7 +387,11 @@ async function admin(db, { parqueId, config }) {
       ...config,
       parque: { ...config.parque, valorBloco: r(config.parque.valorBloco), planos: config.parque.planos.map(x => ({ ...x, preco: r(x.preco) })) }
     },
-    quadras: quadras.map(q => ({ id: q.id, nome: q.nome, modalidade: q.modalidade, precoHora: r(q.preco_hora), ativa: q.ativa }))
+    quadras: quadras.map(q => ({ id: q.id, nome: q.nome, modalidade: q.modalidade, precoHora: r(q.preco_hora), ativa: q.ativa })),
+    mensagens: Object.entries(M.MENSAGENS).map(([id, m]) => ({
+      id, grupo: m.grupo, titulo: m.titulo, quando: m.quando, variaveis: m.variaveis, exemplo: m.exemplo, padrao: m.padrao,
+      texto: config.mensagens[id] || m.padrao, editada: !!config.mensagens[id]
+    }))
   };
 }
 

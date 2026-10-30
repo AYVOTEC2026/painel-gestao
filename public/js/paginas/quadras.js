@@ -1,4 +1,5 @@
-import { esc, icone, dinheiro, dataCurta, dataExtenso, diaSemana, somarDias, plural, telefone, linkWhatsapp, abrirModal, campo, campoDinheiro } from '../ui.js';
+import { esc, icone, dinheiro, dataCurta, dataExtenso, diaSemana, somarDias, plural, telefone, abrirModal, campo, campoDinheiro } from '../ui.js';
+import { zap, primeiroNome } from '../mensagens.js';
 import { campoForma, nomeForma, abrirCaixa } from './comum.js';
 
 const paraMin = t => { const [h, m] = String(t).slice(0, 5).split(':').map(Number); return h * 60 + m; };
@@ -116,7 +117,9 @@ function detalhe(ctx, id) {
   const r = d.reservas.concat(d.aReceber).find(x => x.id === Number(id));
   if (!r) return;
   const q = d.quadras.find(x => x.id === r.quadraId);
-  const zap = linkWhatsapp(r.telefone, `Olá, ${r.cliente.split(' ')[0]}! Confirmando sua reserva da ${q ? q.nome : 'quadra'} em ${dataCurta(r.data)} às ${r.inicio}.`);
+  const link = zap('quadra_reserva', r.telefone, {
+    nome: primeiroNome(r.cliente), quadra: q ? q.nome : 'quadra', data: `${diaSemana(r.data)}, ${dataCurta(r.data)}`, horario: `${r.inicio} às ${r.fim}`, valor: dinheiro(r.valor)
+  });
   const m = abrirModal({
     titulo: r.cliente,
     subtitulo: `${q ? q.nome : r.quadra}, ${dataExtenso(r.data)}`,
@@ -129,7 +132,7 @@ function detalhe(ctx, id) {
       ${r.grupo ? '<p class="nota" style="margin-top:12px">Faz parte de um grupo fixo: a mesma hora toda semana.</p>' : ''}
       <div class="cabecalho-acoes" style="margin-top:16px">
         ${r.status === 'reservada' ? '<button type="button" class="botao primario" data-r="receber">Receber pagamento</button>' : ''}
-        ${zap ? `<a class="botao" href="${esc(zap)}" target="_blank" rel="noopener">${icone('whatsapp')}WhatsApp</a>` : ''}
+        ${link ? `<a class="botao" href="${esc(link)}" target="_blank" rel="noopener">${icone('whatsapp')}Confirmar no WhatsApp</a>` : ''}
         <button type="button" class="botao perigo" data-r="cancelar">Cancelar reserva</button>
       </div>`,
     cancelar: 'Fechar'

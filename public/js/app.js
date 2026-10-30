@@ -1,6 +1,7 @@
 import { api, quandoPerderSessao } from './api.js';
 import { esc, icone, marcaSelo, iniciais, avisar, abrirModal, temModalAberto, fecharTodosModais } from './ui.js';
 import { telaDeEntrada } from './entrada.js';
+import { usarMensagens } from './mensagens.js';
 import { AJUDA } from './ajuda-conteudo.js';
 import { ligarDicas } from './graficos.js';
 import painel from './paginas/painel.js';
@@ -239,7 +240,9 @@ async function sair() {
 
 async function lerSessao() {
   const s = await api.sessao();
-  return s && s.usuario ? s : null;
+  if (!s || !s.usuario) return null;
+  usarMensagens(s.parque.mensagens);
+  return s;
 }
 
 async function entrou() {

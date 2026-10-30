@@ -11,6 +11,8 @@ export const GLOSSARIO = [
   ['Pulseira', 'O ingresso do parque infantil. Ao vender, a criança é cadastrada e o tempo começa a contar na entrega.'],
   ['Tempo excedente', 'Quando a criança passa do tempo da pulseira. Depois da tolerância, cada bloco de minutos começado é cobrado na saída.'],
   ['Day use', 'Ingresso para passar o dia no complexo. É vendido no PDV, como os produtos da loja.'],
+  ['Item de aluguel', 'Equipamento que sai e volta: raquete, guarda-sol, cadeira, bola. É cobrado por hora, por dia ou por uso, e o PDV registra quem levou e até quando.'],
+  ['Devolução', 'Quando o item alugado volta para a recepção. Ao tocar em Devolvido, a unidade fica livre para o próximo cliente.'],
   ['Grupo fixo', 'Reserva de quadra que se repete toda semana no mesmo horário, como uma turma ou uma pelada.'],
   ['Sinal', 'Primeiro pagamento de um evento. Ao receber o sinal, o evento passa de orçamento para confirmado.'],
   ['Fundo de troco', 'Dinheiro que fica na gaveta ao abrir o caixa, para dar troco.'],
@@ -29,6 +31,7 @@ export const ROTINA_DIA = [
   ['Abra o caixa', 'No PDV, informe o troco que ficou na gaveta.'],
   ['Venda pulseiras no parque', 'Cadastre a criança e o responsável. O tempo começa a contar na entrega da pulseira.'],
   ['Venda na loja e na bilheteria', 'No PDV: raquetes, bolas, bebidas e day use.'],
+  ['Alugue e receba de volta', 'No PDV, aba Aluguel: escolha o item e o tempo, e escreva quem leva. Quando voltar, toque em Devolvido.'],
   ['Receba as reservas de quadra', 'Na agenda das quadras, toque na reserva e registre o pagamento.'],
   ['Registre a saída das crianças', 'Se passou do tempo, o sistema calcula o excedente.'],
   ['Feche o caixa', 'Conte o dinheiro e confira a maquininha. Diferenças ficam registradas.']
@@ -53,6 +56,8 @@ export const PERGUNTAS = [
   ['Como mando as notas para o contador?', 'Em Contabilidade, aba Para o contador, baixe o pacote do mês. É um arquivo ZIP: mande por e-mail ou WhatsApp. Dentro, as notas vêm com nome organizado (data, categoria e fornecedor), e o arquivo LEIA-ME mostra o resumo com um link para cada nota.'],
   ['Uma despesa não tem nota. E agora?', 'Peça a nota ao fornecedor: quase sempre ele emite. Se não houver mesmo (um autônomo sem recibo, por exemplo), abra a despesa e escolha "Sem documento" com o motivo. O contador vê a justificativa no pacote.'],
   ['PDF ou XML da nota?', 'Os dois, quando tiver. O XML é o arquivo oficial da nota e é o que o contador importa no sistema dele; o PDF é a versão para ler. Com o XML, o sistema também preenche a despesa sozinho.'],
+  ['Como alugo uma raquete?', 'No PDV, toque em Aluguel e escolha a raquete. Na comanda, escolha por quanto tempo e escreva o nome de quem leva (o WhatsApp é opcional). O sistema calcula o valor e marca a hora de devolver. Quando a raquete voltar, toque em Devolvido em "Itens alugados fora".'],
+  ['Posso mudar o texto das mensagens do WhatsApp?', 'Sim. Em Administração, aba Mensagens, cada mensagem tem o texto, as variáveis (como {nome} e {valor}, que viram os dados de cada pessoa) e uma prévia de como chega. Salve e todos os botões de WhatsApp passam a usar o texto novo.'],
   ['Os dados ficam salvos onde?', 'Num banco de dados no servidor, não no aparelho. Dá para entrar de qualquer computador ou celular e ver as mesmas informações.']
 ];
 
@@ -75,9 +80,10 @@ export const AJUDA = {
   pdv: {
     titulo: 'Como usar o PDV',
     html: `
-      <p>O PDV é o caixa da recepção: vende os produtos da loja e os ingressos da bilheteria (day use).</p>
+      <p>O PDV é o caixa da recepção: vende os produtos da loja, aluga equipamentos e vende os ingressos da bilheteria (day use).</p>
       ${lista([
         'Toque nos itens para montar o pedido. Use + e − para ajustar a quantidade.',
+        '<b>Aluguel</b>: escolha por quanto tempo na comanda e escreva quem leva. O item aparece em <b>Itens alugados fora</b> até você tocar em <b>Devolvido</b>.',
         'Escolha a forma de pagamento. No dinheiro, digite quanto o cliente entregou e o sistema mostra o troco.',
         'Toque em <b>Finalizar venda</b>. O estoque baixa sozinho.',
         'Pulseira do parque? Use o botão <b>Vender pulseira</b>: ele abre o cadastro da criança.'
@@ -129,7 +135,9 @@ export const AJUDA = {
     titulo: 'Loja e bilheteria',
     html: `
       ${lista([
-        '<b>Produtos da loja</b>: raquetes, bolas, acessórios, bebidas. Com controle de estoque opcional e aviso de estoque mínimo.',
+        '<b>Venda ou aluguel</b>: ao cadastrar, diga se o item é vendido (sai e não volta) ou alugado (sai e volta).',
+        '<b>Produtos à venda</b>: raquetes, bolas, acessórios, bebidas. Com controle de estoque opcional e aviso de estoque mínimo.',
+        '<b>Itens para alugar</b>: preço por hora, por dia ou por uso, e quantas unidades o complexo tem. A aba mostra o que está livre e o que está com clientes.',
         '<b>Ingressos</b>: day use e outros ingressos, sem estoque.',
         '<b>Entrada de estoque</b>: quando a mercadoria chegar. Se informar o custo, ele vira uma despesa de compra no financeiro.',
         'A venda acontece no <b>PDV</b>; aqui você cuida do cadastro, dos preços e do estoque.'
@@ -186,6 +194,7 @@ export const AJUDA = {
       '<b>Equipe</b>: cada pessoa entra com o próprio e-mail e senha, em um de três perfis: Gestão, Recepção ou Monitor do parque.',
       '<b>Parque infantil</b>: tempos de pulseira, preços, capacidade e regra do tempo excedente.',
       '<b>Quadras</b> e <b>espaços de eventos</b>: cadastro e preço por hora.',
+      '<b>Mensagens</b>: o texto de cada mensagem do WhatsApp (lembretes de aluguel, orçamento, evento, quadra, parque e devolução), com prévia.',
       '<b>Histórico</b>: tudo o que cada pessoa fez, com data e hora.'
     ])}`
   }

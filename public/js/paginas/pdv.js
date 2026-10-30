@@ -1,6 +1,6 @@
 import { esc, icone, dinheiro, hora, dataCurta, plural, vazio, avisar, abrirModal, confirmar, campo, campoDinheiro, dica, classeLinha, botaoMostrarTudo } from '../ui.js';
 import { abrirEntrada } from './parque.js';
-import { abrirCaixa, nomeForma, NOMES_AREA } from './comum.js';
+import { abrirCaixa, nomeForma, NOMES_AREA, PERIODOS, tempoDoAluguel, htmlAlugados } from './comum.js';
 
 /* O pedido em andamento fica aqui, para sobreviver às atualizações da tela. */
 let carrinho = [];
@@ -10,10 +10,16 @@ let recebido = '';
 let tipo = 'loja';
 let busca = '';
 let comandaNaTela = false;
+// Quem leva os itens alugados, para cobrar a devolução.
+let cliente = '';
+let foneCliente = '';
 
-const limpar = () => { carrinho = []; desconto = ''; recebido = ''; };
+const limpar = () => { carrinho = []; desconto = ''; recebido = ''; cliente = ''; foneCliente = ''; };
 const centavos = v => Math.round((Number(String(v).replace(/\./g, '').replace(',', '.')) || 0) * 100);
-const subtotal = () => carrinho.reduce((t, i) => t + Math.round(i.preco * 100) * i.qtd, 0);
+const valorDaLinha = i => Math.round(i.preco * 100) * i.qtd * (i.periodos || 1);
+const subtotal = () => carrinho.reduce((t, i) => t + valorDaLinha(i), 0);
+const temAluguel = () => carrinho.some(i => i.periodo);
+const MAX_PERIODOS = { hora: 8, dia: 7 };
 const total = () => Math.max(0, subtotal() - centavos(desconto));
 
 function htmlProdutos(d) {
@@ -23,12 +29,14 @@ function htmlProdutos(d) {
   return `<div class="produtos">${lista.map(p => {
     const noPedido = (carrinho.find(i => i.produtoId === p.id) || {}).qtd || 0;
     const esgotado = p.controlaEstoque && p.estoque <= 0;
-    return `<button type="button" class="produto" data-a="add" data-id="${p.id}" ${esgotado ? 'disabled' : ''}>
+    const aluguel = p.tipo === 'aluguel';
+    const estoque = aluguel ? (esgotado ? 'Todos alugados' : `${p.estoque} ${p.estoque === 1 ? 'livre' : 'livres'}`) : esgotado ? 'Esgotado' : `${p.estoque} em estoque`;
+    return `<button type="button" class="produto ${aluguel ? 'de-aluguel' : ''}" data-a="add" data-id="${p.id}" ${esgotado ? 'disabled' : ''}>
       ${noPedido ? `<span class="no-pedido">${noPedido}</span>` : ''}
       <span class="categoria">${esc(p.categoria)}</span>
       <b>${esc(p.nome)}</b>
-      ${p.controlaEstoque ? `<small>${esgotado ? 'Esgotado' : `${p.estoque} em estoque`}</small>` : ''}
-      <strong>${esc(dinheiro(p.preco))}</strong>
+      ${p.controlaEstoque ? `<small>${estoque}</small>` : ''}
+      <strong>${esc(dinheiro(p.preco))}${aluguel ? `<span class="periodo"> ${esc(PERIODOS[p.periodo])}</span>` : ''}</strong>
     </button>`;
   }).join('')}</div>`;
 }
@@ -42,9 +50,28 @@ function htmlLinhas() {
         <span>${i.qtd}</span>
         <button type="button" data-a="mais" data-n="${n}" aria-label="Pôr mais um ${esc(i.nome)}">${icone('mais')}</button>
       </div>
-      <div><b>${esc(i.nome)}</b><small>${esc(dinheiro(i.preco))} cada</small></div>
-      <span class="valor">${esc(dinheiro(i.preco * i.qtd))}</span>
+      <div><b>${esc(i.nome)}</b>${i.periodo ? `<small>Aluguel, ${esc(dinheiro(i.preco))} ${esc(PERIODOS[i.periodo])}</small>${MAX_PERIODOS[i.periodo] ? `
+        <label class="tempo-aluguel">Por <select data-a="periodos" data-n="${n}" aria-label="Tempo do aluguel de ${esc(i.nome)}">${Array.from({ length: MAX_PERIODOS[i.periodo] }, (_, k) => k + 1).map(k => `<option value="${k}" ${k === i.periodos ? 'selected' : ''}>${esc(tempoDoAluguel(i.periodo, k))}</option>`).join('')}</select></label>` : ''}` : `<small>${esc(dinheiro(i.preco))} cada</small>`}</div>
+      <span class="valor">${esc(dinheiro(valorDaLinha(i) / 100))}</span>
     </div>`).join('');
+}
+
+/** Item alugado precisa de um nome: é com ele que a recepção cobra a devolução. */
+function htmlCliente() {
+  if (!temAluguel()) return '';
+  return `<div class="comanda-cliente">
+    <div class="campo"><label for="pdvCliente">Quem leva os itens alugados</label><input id="pdvCliente" value="${esc(cliente)}" placeholder="Nome" autocomplete="off"></div>
+    <div class="campo"><label for="pdvFone">WhatsApp <span class="opcional">(opcional)</span></label><input id="pdvFone" type="tel" value="${esc(foneCliente)}" placeholder="(85) 99999-9999" autocomplete="off"></div>
+  </div>`;
+}
+
+function htmlAlugadosFora(d) {
+  if (!d.alugados.length) return '';
+  const atrasados = d.alugados.filter(a => a.atrasado).length;
+  return `<section class="bloco" style="margin-top:24px">
+    <div class="bloco-cabeca"><div><h2>Itens alugados fora</h2><p>${plural(d.alugados.length, 'aluguel com cliente', 'aluguéis com clientes')}${atrasados ? `, ${plural(atrasados, 'passou', 'passaram')} da hora de voltar` : ''}. Quando o item voltar, toque em Devolvido.</p></div></div>
+    ${htmlAlugados(d.alugados, d.agora)}
+  </section>`;
 }
 
 function htmlTotal() {
@@ -71,6 +98,7 @@ function htmlComanda(d) {
   return `<aside class="comanda" id="comanda" aria-label="Pedido">
     <div class="comanda-cabeca"><h2>Pedido</h2>${carrinho.length ? '<button type="button" class="botao fantasma pequeno" data-a="limpar">Limpar</button>' : ''}</div>
     <div class="comanda-linhas" id="comandaLinhas">${htmlLinhas()}</div>
+    ${htmlCliente()}
     <div class="comanda-extra uma">
       <div class="campo"><label for="pdvDesconto">Desconto</label><div class="campo-prefixo"><span>R$</span><input id="pdvDesconto" inputmode="decimal" value="${esc(desconto)}" placeholder="0,00"></div></div>
     </div>
@@ -144,6 +172,10 @@ function htmlBarraMovel() {
     <button class="botao primario" data-a="ir-comanda">Ver pedido</button>
   </div>`;
 }
+
+const semUnidades = p => (p.tipo === 'aluguel'
+  ? `${p.estoque === 1 ? 'Só 1 unidade livre' : `Só ${p.estoque} unidades livres`} de ${p.nome} agora.`
+  : `Só há ${p.estoque} de ${p.nome} em estoque.`);
 
 /* -------------------------------------------------------------- modais */
 
@@ -222,7 +254,7 @@ export default {
   aoVivo: true,
   podeAtualizar: () => carrinho.length === 0,
   titulo: 'PDV',
-  descricao: 'O caixa da recepção: loja, bilheteria e day use. As pulseiras do parque também entram aqui.',
+  descricao: 'O caixa da recepção: loja, aluguel de equipamentos, bilheteria e day use. As pulseiras do parque também entram aqui.',
 
   render(ctx) {
     const d = ctx.dados;
@@ -237,8 +269,7 @@ export default {
           </div>
           <div class="etapa-titulo">
             <div class="seg" role="group" aria-label="Tipo de item">
-              <button type="button" data-a="tipo" data-id="loja" class="${tipo === 'loja' ? 'ativo' : ''}" aria-pressed="${tipo === 'loja'}">Loja</button>
-              <button type="button" data-a="tipo" data-id="ingresso" class="${tipo === 'ingresso' ? 'ativo' : ''}" aria-pressed="${tipo === 'ingresso'}">Bilheteria e day use</button>
+              ${[['loja', 'Loja'], ['aluguel', 'Aluguel'], ['ingresso', 'Bilheteria e day use']].map(([id, nome]) => `<button type="button" data-a="tipo" data-id="${id}" class="${tipo === id ? 'ativo' : ''}" aria-pressed="${tipo === id}">${nome}</button>`).join('')}
             </div>
             <div class="busca"><input id="pdvBusca" type="search" placeholder="Buscar item" value="${esc(busca)}" aria-label="Buscar item"></div>
           </div>
@@ -246,6 +277,7 @@ export default {
         </div>
         ${htmlComanda(d)}
       </div>
+      ${htmlAlugadosFora(d)}
       ${htmlMovimento(d)}
       ${htmlFechamentos(d)}
       ${htmlBarraMovel()}`;
@@ -294,17 +326,22 @@ export default {
     async function finalizar(botao) {
       if (botao.classList.contains('carregando')) return;
       if (forma === 'dinheiro' && recebido && centavos(recebido) < total()) { avisar('O valor entregue é menor que o total.', 'erro'); return; }
+      if (temAluguel() && cliente.trim().length < 2) {
+        avisar('Escreva o nome de quem leva os itens alugados.', 'erro');
+        corpo.querySelector('#pdvCliente').focus();
+        return;
+      }
       botao.classList.add('carregando');
       const troco = forma === 'dinheiro' && recebido ? centavos(recebido) - total() : 0;
-      const pedido = { itens: carrinho.map(i => ({ produtoId: i.produtoId, qtd: i.qtd })), desconto, forma };
+      const pedido = { itens: carrinho.map(i => ({ produtoId: i.produtoId, qtd: i.qtd, periodos: i.periodos })), desconto, forma, cliente, telefone: foneCliente };
       // Esvazia antes de redesenhar com a venda gravada; se o servidor recusar, o pedido volta.
-      const antes = { carrinho: carrinho.map(i => ({ ...i })), desconto, recebido };
+      const antes = { carrinho: carrinho.map(i => ({ ...i })), desconto, recebido, cliente, foneCliente };
       limpar();
       try {
         const r = await ctx.acao('vender', pedido);
         avisar(`Venda ${String(r.numero).padStart(4, '0')} registrada.${troco > 0 ? ` Troco: ${dinheiro(troco / 100)}.` : ''}`);
       } catch (err) {
-        ({ carrinho, desconto, recebido } = antes);
+        ({ carrinho, desconto, recebido, cliente, foneCliente } = antes);
         avisar(err.message, 'erro');
         ctx.desenhar();
       }
@@ -312,21 +349,28 @@ export default {
 
     corpo.addEventListener('click', async e => {
       if (e.target.closest('[data-abrir-caixa]')) return abrirCaixa(ctx);
+      const devolver = e.target.closest('[data-devolver]');
+      if (devolver) {
+        devolver.classList.add('carregando');
+        return ctx.acao('devolver-item', { itemId: Number(devolver.dataset.devolver) }, 'Devolução registrada. O item voltou para a prateleira.')
+          .catch(err => { avisar(err.message, 'erro'); devolver.classList.remove('carregando'); });
+      }
       const alvo = e.target.closest('[data-a]');
       if (!alvo || alvo.disabled) return;
       const a = alvo.dataset.a;
       if (a === 'add') {
         const p = d().produtos.find(x => x.id === Number(alvo.dataset.id));
         const item = carrinho.find(i => i.produtoId === p.id);
-        if (p.controlaEstoque && (item ? item.qtd : 0) + 1 > p.estoque) return avisar(`Só há ${p.estoque} de ${p.nome} em estoque.`, 'erro');
-        if (item) item.qtd += 1; else carrinho.push({ produtoId: p.id, nome: p.nome, preco: p.preco, qtd: 1 });
+        if (p.controlaEstoque && (item ? item.qtd : 0) + 1 > p.estoque) return avisar(semUnidades(p), 'erro');
+        if (item) item.qtd += 1;
+        else carrinho.push({ produtoId: p.id, nome: p.nome, preco: p.preco, qtd: 1, ...(p.tipo === 'aluguel' ? { periodo: p.periodo, periodos: 1 } : {}) });
         atualizar();
       } else if (a === 'mais' || a === 'menos') {
         const item = carrinho[Number(alvo.dataset.n)];
         if (!item) return;
         if (a === 'mais') {
           const p = d().produtos.find(x => x.id === item.produtoId);
-          if (p && p.controlaEstoque && item.qtd + 1 > p.estoque) return avisar(`Só há ${p.estoque} de ${p.nome} em estoque.`, 'erro');
+          if (p && p.controlaEstoque && item.qtd + 1 > p.estoque) return avisar(semUnidades(p), 'erro');
           item.qtd += 1;
         } else if ((item.qtd -= 1) <= 0) carrinho.splice(Number(alvo.dataset.n), 1);
         atualizar();
@@ -351,7 +395,17 @@ export default {
       } else if (a === 'ir-comanda') corpo.querySelector('#comanda').scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
 
+    corpo.addEventListener('change', e => {
+      if (e.target.dataset.a !== 'periodos') return;
+      const item = carrinho[Number(e.target.dataset.n)];
+      if (!item) return;
+      item.periodos = Number(e.target.value);
+      atualizar({ produtos: false });
+    });
+
     corpo.addEventListener('input', e => {
+      if (e.target.id === 'pdvCliente') { cliente = e.target.value; return; }
+      if (e.target.id === 'pdvFone') { foneCliente = e.target.value; return; }
       if (e.target.id === 'pdvBusca') {
         busca = e.target.value;
         corpo.querySelector('#pdvProdutos').innerHTML = htmlProdutos(d());

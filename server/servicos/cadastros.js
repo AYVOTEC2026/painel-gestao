@@ -5,6 +5,7 @@ const C = require('../dominio/contabil');
 const D = require('../dominio/datas');
 const { texto, textoObrigatorio, valorEmCentavos, inteiro, data, formatar, ErroUsuario } = require('./contexto');
 const { criarConta, baixarConta } = require('./financeiro');
+const M = require('../dominio/mensagens');
 
 /* Catálogo da loja e da bilheteria, quadras e configurações do complexo. */
 
@@ -13,6 +14,14 @@ async function produtoDoParque(ctx, id) {
   if (!r.rows[0]) throw new ErroUsuario('Produto não encontrado.');
   return r.rows[0];
 }
+
+/** Unidades de um item de aluguel que estão com clientes agora. */
+async function unidadesFora(ctx, produtoId) {
+  const r = await ctx.tx.query("select coalesce(sum(qtd), 0)::int as n from itens_alugados where produto_id = $1 and status = 'fora'", [produtoId]);
+  return r.rows[0].n;
+}
+
+const PERIODOS = { hora: 'por hora', dia: 'por dia', uso: 'por uso' };
 
 const porcentagemValida = (v, rotulo) => {
   const n = Number(String(v).replace(',', '.'));
@@ -24,24 +33,38 @@ const ACOES = {
   'salvar-produto': {
     papeis: ['dono'],
     async executar(ctx, d) {
+      const tipo = ['ingresso', 'aluguel'].includes(d.tipo) ? d.tipo : 'loja';
+      const aluguel = tipo === 'aluguel';
+      if (aluguel && !PERIODOS[d.periodo]) throw new ErroUsuario('Escolha como o aluguel é cobrado: por hora, por dia ou por uso.');
       const campos = {
-        tipo: d.tipo === 'ingresso' ? 'ingresso' : 'loja',
+        tipo,
         nome: textoObrigatorio(d.nome, 'o nome'),
         categoria: texto(d.categoria, 60),
-        preco: valorEmCentavos(d.preco, 'o preço'),
-        controla_estoque: !!d.controlaEstoque,
-        estoque_minimo: inteiro(d.estoqueMinimo, 'o estoque mínimo', { min: 0, max: 100000, vazio: 0 }),
+        preco: valorEmCentavos(d.preco, aluguel ? 'o preço do aluguel' : 'o preço'),
+        periodo: aluguel ? d.periodo : null,
+        // Item de aluguel sempre conta unidades: o PDV não aluga o que já está com alguém.
+        controla_estoque: aluguel || !!d.controlaEstoque,
+        estoque_minimo: aluguel ? 0 : inteiro(d.estoqueMinimo, 'o estoque mínimo', { min: 0, max: 100000, vazio: 0 }),
         ativo: d.ativo !== false
       };
+      const unidades = aluguel ? inteiro(d.unidades, 'quantas unidades o complexo tem para alugar', { min: 1, max: 10000 }) : 0;
       if (d.produtoId) {
         const p = await produtoDoParque(ctx, d.produtoId);
+        const fora = p.tipo === 'aluguel' ? await unidadesFora(ctx, p.id) : 0;
+        if (fora && !aluguel) throw new ErroUsuario(`Há ${fora} ${fora === 1 ? 'unidade alugada' : 'unidades alugadas'} com clientes. Receba a devolução antes de mudar para venda.`);
+        if (fora > unidades) throw new ErroUsuario(`Há ${fora} unidades alugadas agora. O total não pode ser menor que isso.`);
+        // No aluguel, o estoque é o que está livre: o total informado menos o que está com clientes.
+        if (aluguel) campos.estoque = unidades - fora;
         await atualizar(ctx.tx, 'produtos', p.id, campos);
         const preco = Number(p.preco) !== campos.preco ? ` Preço de ${formatar(p.preco)} para ${formatar(campos.preco)}.` : '';
-        return { resumo: `Atualizou ${campos.nome}.${preco}` };
+        const mudou = p.tipo !== tipo && tipo !== 'ingresso' ? ` Agora é item de ${aluguel ? 'aluguel' : 'venda'}.` : '';
+        return { resumo: `Atualizou ${campos.nome}.${preco}${mudou}` };
       }
-      const estoque = campos.controla_estoque ? inteiro(d.estoque, 'o estoque inicial', { min: 0, max: 100000, vazio: 0 }) : 0;
+      const estoque = aluguel ? unidades : campos.controla_estoque ? inteiro(d.estoque, 'o estoque inicial', { min: 0, max: 100000, vazio: 0 }) : 0;
       const p = await inserir(ctx.tx, 'produtos', { parque_id: ctx.parqueId, ...campos, estoque, criado_em: ctx.agora });
-      return { resumo: `Cadastrou ${p.nome} por ${formatar(p.preco)}${p.controla_estoque ? ` com ${estoque} em estoque` : ''}.`, resultado: { produtoId: p.id } };
+      const detalhe = aluguel ? ` ${PERIODOS[p.periodo]}, para alugar, com ${estoque} ${estoque === 1 ? 'unidade' : 'unidades'}`
+        : p.controla_estoque ? ` com ${estoque} em estoque` : '';
+      return { resumo: `Cadastrou ${p.nome} por ${formatar(p.preco)}${detalhe}.`, resultado: { produtoId: p.id } };
     }
   },
 
@@ -49,6 +72,7 @@ const ACOES = {
     papeis: ['dono'],
     async executar(ctx, d) {
       const p = await produtoDoParque(ctx, d.produtoId);
+      if (p.tipo === 'aluguel') throw new ErroUsuario('Item de aluguel: mude o total de unidades no cadastro do item.');
       if (!p.controla_estoque) throw new ErroUsuario('Este produto não controla estoque. Ative o controle no cadastro.');
       const qtd = inteiro(d.quantidade, 'a quantidade que chegou', { min: 1, max: 100000 });
       await ctx.tx.query('update produtos set estoque = estoque + $2 where id = $1', [p.id, qtd]);
@@ -73,6 +97,7 @@ const ACOES = {
     papeis: ['dono'],
     async executar(ctx, d) {
       const p = await produtoDoParque(ctx, d.produtoId);
+      if (p.tipo === 'aluguel') throw new ErroUsuario('Item de aluguel: mude o total de unidades no cadastro do item.');
       const contagem = inteiro(d.contagem, 'a quantidade contada', { min: 0, max: 100000 });
       await atualizar(ctx.tx, 'produtos', p.id, { estoque: contagem, controla_estoque: true });
       return { resumo: `Ajustou o estoque de ${p.nome} de ${p.estoque} para ${contagem} após contagem.` };
@@ -152,6 +177,29 @@ const ACOES = {
       if (!espacos.length) throw new ErroUsuario('Cadastre pelo menos um espaço para eventos.');
       await ctx.salvarConfig(Object.assign({}, ctx.config, { espacos }));
       return { resumo: `Atualizou os espaços de eventos: ${espacos.join(', ')}.` };
+    }
+  },
+
+  'salvar-mensagem': {
+    papeis: ['dono'],
+    async executar(ctx, d) {
+      const modelo = M.MENSAGENS[d.id];
+      if (!modelo) throw new ErroUsuario('Mensagem não encontrada.');
+      const mensagens = { ...ctx.config.mensagens };
+      const escrito = String(d.texto == null ? '' : d.texto).replace(/\r\n?/g, '\n').trim();
+      if (d.padrao || escrito === modelo.padrao) {
+        delete mensagens[d.id];
+      } else {
+        if (!escrito) throw new ErroUsuario('Escreva a mensagem ou volte ao texto padrão.');
+        if (escrito.length > 1000) throw new ErroUsuario('A mensagem passou de 1.000 letras. Encurte um pouco.');
+        const erradas = M.variaveisDesconhecidas(d.id, escrito);
+        if (erradas.length) {
+          throw new ErroUsuario(`${erradas.map(v => `{${v}}`).join(', ')} não ${erradas.length === 1 ? 'existe' : 'existem'} nesta mensagem. Use ${Object.keys(modelo.variaveis).map(v => `{${v}}`).join(', ')}.`);
+        }
+        mensagens[d.id] = escrito;
+      }
+      await ctx.salvarConfig(Object.assign({}, ctx.config, { mensagens }));
+      return { resumo: mensagens[d.id] ? `Editou a mensagem do WhatsApp "${modelo.titulo}".` : `Voltou a mensagem do WhatsApp "${modelo.titulo}" ao texto padrão.` };
     }
   }
 };

@@ -6,6 +6,7 @@ const A = require('./acesso');
 const D = require('./dominio/datas');
 const { PAPEIS, papelValido, podeVerTela } = require('./dominio/permissoes');
 const { PADRAO, completar } = require('./dominio/configuracao');
+const { textos: textosDasMensagens } = require('./dominio/mensagens');
 const { criarAcessos } = require('./persistencia/acessos');
 const { inserir } = require('./persistencia/banco');
 const { executarAcao } = require('./servicos');
@@ -199,7 +200,8 @@ function criarApp({ cfg, banco, agora }) {
   app.get('/api/sessao', rota(async (req, res) => {
     if (!req.usuario) return res.json({ usuario: null });
     const p = await acessos.parques.ler(req.usuario.parqueId);
-    res.json({ usuario: perfil(req.usuario), parque: { nome: p.nome, modo: p.modo } });
+    // As mensagens do WhatsApp vão com a sessão: várias telas abrem conversas com o texto editado pela gestão.
+    res.json({ usuario: perfil(req.usuario), parque: { nome: p.nome, modo: p.modo, mensagens: textosDasMensagens(completar(p.config)) } });
   }));
 
   app.get('/api/tela/:nome', exigir(), rota(async (req, res) => {
@@ -384,7 +386,8 @@ function criarApp({ cfg, banco, agora }) {
     await banco.transacao(async tx => {
       await tx.query('select id from parques where id = $1 for update', [parqueId]);
       await demo.apagarOperacao(tx, parqueId);
-      const config = Object.assign({}, PADRAO, { cidade: complexo.cidade });
+      // Os números da demonstração saem; as mensagens do WhatsApp que ela escreveu ficam.
+      const config = Object.assign({}, PADRAO, { cidade: complexo.cidade, mensagens: completar(p.config).mensagens });
       await tx.query("update parques set nome = $2, config = $3, modo = 'real', demo_dia = null where id = $1", [parqueId, complexo.nome, JSON.stringify(config)]);
     });
     await acessos.usuarios.desativarDemos(parqueId);

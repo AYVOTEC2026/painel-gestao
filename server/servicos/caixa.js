@@ -2,9 +2,38 @@
 
 const { inserir, atualizar } = require('../persistencia/banco');
 const C = require('../dominio/contabil');
-const { texto, valorEmCentavos, inteiro, formatar, ErroUsuario } = require('./contexto');
+const D = require('../dominio/datas');
+const { texto, textoObrigatorio, valorEmCentavos, inteiro, formatar, ErroUsuario } = require('./contexto');
 
 const TODOS = ['dono', 'recepcao', 'monitor'];
+
+/* Itens alugados no PDV: quanto tempo cada um pode ficar fora e como aparece no recibo. */
+const MAX_PERIODOS = { hora: 12, dia: 30, uso: 1 };
+const CONTA_DO_TIPO = { loja: 'receita_loja', ingresso: 'receita_bilheteria', aluguel: 'receita_equipamentos' };
+const valorDaLinha = i => i.preco * i.qtd * (i.periodos || 1);
+
+function tempoDoAluguel(i) {
+  if (i.periodo === 'hora') return `${i.periodos} h`;
+  if (i.periodo === 'dia') return i.periodos === 1 ? '1 dia' : `${i.periodos} dias`;
+  return 'por uso';
+}
+const linhaDoRecibo = i => `${i.qtd}× ${i.nome}${i.tipo === 'aluguel' ? ` (aluguel, ${tempoDoAluguel(i)})` : ''}`;
+
+/** Até quando o item deve voltar: horas contadas da saída; diária até o fechamento do último dia. */
+function devolverAte(i, agora, fecha) {
+  if (i.periodo === 'hora') return D.somarMinutos(agora, 60 * i.periodos);
+  if (i.periodo === 'dia') return `${D.somarDias(D.diaDe(agora), i.periodos - 1)}T${fecha === '00:00' ? '23:59' : fecha}:00`;
+  return null;
+}
+
+/** Divide o desconto entre as receitas na proporção de cada uma; o centavo que sobra fica na maior. */
+function creditosComDesconto(porConta, desconto) {
+  const contas = Object.keys(porConta).sort((a, b) => porConta[b] - porConta[a]);
+  const total = contas.reduce((t, c) => t + porConta[c], 0);
+  const partes = contas.map(c => (total ? Math.round(desconto * porConta[c] / total) : 0));
+  partes[0] += desconto - partes.reduce((t, p) => t + p, 0);
+  return contas.map((conta, n) => ({ conta, valor: porConta[conta] - partes[n] }));
+}
 
 /** Quanto deveria haver em cada forma de pagamento neste caixa. */
 async function esperadoDoCaixa(ctx, caixa) {
@@ -101,37 +130,46 @@ const ACOES = {
         const p = porId.get(Number(i.produtoId));
         if (!p || !p.ativo) throw new ErroUsuario('Há um item que não está mais à venda. Atualize a tela.');
         const qtd = inteiro(i.qtd, 'a quantidade', { min: 1, max: 999 });
-        if (p.controla_estoque && p.estoque < qtd) throw new ErroUsuario(`Só há ${p.estoque} de ${p.nome} em estoque.`);
-        return { produtoId: p.id, nome: p.nome, tipo: p.tipo, qtd, preco: Number(p.preco) };
+        if (p.controla_estoque && p.estoque < qtd) {
+          throw new ErroUsuario(p.tipo === 'aluguel' ? `Só ${p.estoque === 1 ? 'há 1' : `há ${p.estoque}`} de ${p.nome} livre para alugar agora.` : `Só há ${p.estoque} de ${p.nome} em estoque.`);
+        }
+        if (p.tipo !== 'aluguel') return { produtoId: p.id, nome: p.nome, tipo: p.tipo, qtd, preco: Number(p.preco) };
+        const periodos = inteiro(i.periodos, 'o tempo do aluguel', { min: 1, max: MAX_PERIODOS[p.periodo], vazio: 1 });
+        return { produtoId: p.id, nome: p.nome, tipo: p.tipo, qtd, preco: Number(p.preco), periodo: p.periodo, periodos };
       });
-      const subtotal = itens.reduce((t, i) => t + i.preco * i.qtd, 0);
+      // Quem leva um item alugado fica registrado, para cobrar a devolução.
+      const aluga = itens.some(i => i.tipo === 'aluguel');
+      const cliente = aluga ? textoObrigatorio(d.cliente, 'o nome de quem leva os itens alugados') : '';
+      const telefone = aluga ? texto(d.telefone, 30) : '';
+      const subtotal = itens.reduce((t, i) => t + valorDaLinha(i), 0);
       const desconto = valorEmCentavos(d.desconto, 'o desconto', { zeroOk: true, vazio: 0 });
       if (desconto > subtotal) throw new ErroUsuario('O desconto não pode ser maior que o total dos itens.');
       const total = subtotal - desconto;
       C.exigirForma(d.forma);
 
-      // O desconto é dividido entre loja e bilheteria na proporção de cada uma.
-      const porArea = { loja: 0, ingresso: 0 };
-      itens.forEach(i => { porArea[i.tipo] += i.preco * i.qtd; });
-      const descLoja = subtotal ? Math.round(desconto * porArea.loja / subtotal) : 0;
-      const creditos = [
-        { conta: 'receita_loja', valor: porArea.loja - descLoja },
-        { conta: 'receita_bilheteria', valor: porArea.ingresso - (desconto - descLoja) }
-      ];
+      const porConta = {};
+      itens.forEach(i => { porConta[CONTA_DO_TIPO[i.tipo]] = (porConta[CONTA_DO_TIPO[i.tipo]] || 0) + valorDaLinha(i); });
+      const creditos = creditosComDesconto(porConta, desconto);
 
       const numero = await ctx.proximoNumero('vendas');
       const venda = await inserir(ctx.tx, 'vendas', {
         parque_id: ctx.parqueId, numero, caixa_id: caixa.id, em: ctx.agora, itens, subtotal, desconto, total,
         forma: d.forma, taxa: 0, vendedor: ctx.quem
       });
-      const descricao = `Venda ${String(numero).padStart(4, '0')}: ${itens.map(i => `${i.qtd}× ${i.nome}`).join(', ')}`;
+      const descricao = `Venda ${String(numero).padStart(4, '0')}: ${itens.map(linhaDoRecibo).join(', ')}`;
       const { taxa } = await ctx.receber({ area: 'pdv', origem: 'venda', id: venda.id, descricao, valor: total, forma: d.forma, creditos });
       if (taxa) await atualizar(ctx.tx, 'vendas', venda.id, { taxa });
       for (const i of itens) {
         await ctx.tx.query('update produtos set estoque = estoque - $2 where id = $1 and controla_estoque', [i.produtoId, i.qtd]);
+        if (i.tipo === 'aluguel') {
+          await inserir(ctx.tx, 'itens_alugados', {
+            parque_id: ctx.parqueId, venda_id: venda.id, produto_id: i.produtoId, nome: i.nome, qtd: i.qtd, periodos: i.periodos,
+            cliente, telefone, saiu_em: ctx.agora, devolver_ate: devolverAte(i, ctx.agora, ctx.config.horario.fecha), status: 'fora', por: ctx.quem
+          });
+        }
       }
       const forma = C.formaPorId(d.forma).nome;
-      return { resumo: `Vendeu ${formatar(total)} no PDV (${forma}): ${itens.map(i => `${i.qtd}× ${i.nome}`).join(', ')}.`, resultado: { vendaId: venda.id, numero } };
+      return { resumo: `Vendeu ${formatar(total)} no PDV (${forma}): ${itens.map(linhaDoRecibo).join(', ')}${aluga ? `. Alugado para ${cliente}` : ''}.`, resultado: { vendaId: venda.id, numero } };
     }
   },
 
@@ -151,10 +189,34 @@ const ACOES = {
       const numero = String(venda.numero).padStart(4, '0');
       await ctx.estornar('venda', venda.id, `venda ${numero}`);
       for (const i of venda.itens) {
-        await ctx.tx.query('update produtos set estoque = estoque + $2 where id = $1 and controla_estoque', [i.produtoId, i.qtd]);
+        if (i.tipo === 'aluguel') {
+          // Volta para a prateleira só o que ainda estava com o cliente; o devolvido já voltou.
+          const fora = await ctx.tx.query(
+            "update itens_alugados set status = 'cancelado' where venda_id = $1 and produto_id = $2 and status = 'fora' returning qtd",
+            [venda.id, i.produtoId]
+          );
+          const qtd = fora.rows.reduce((t, x) => t + x.qtd, 0);
+          if (qtd) await ctx.tx.query('update produtos set estoque = estoque + $2 where id = $1', [i.produtoId, qtd]);
+        } else {
+          await ctx.tx.query('update produtos set estoque = estoque + $2 where id = $1 and controla_estoque', [i.produtoId, i.qtd]);
+        }
       }
       await atualizar(ctx.tx, 'vendas', venda.id, { status: 'cancelada', motivo });
       return { resumo: `Cancelou a venda ${numero} de ${formatar(venda.total)}. Motivo: ${motivo}.` };
+    }
+  },
+
+  'devolver-item': {
+    papeis: ['dono', 'recepcao'],
+    async executar(ctx, d) {
+      const r = await ctx.tx.query('select * from itens_alugados where parque_id = $1 and id = $2', [ctx.parqueId, Number(d.itemId)]);
+      const item = r.rows[0];
+      if (!item) throw new ErroUsuario('Aluguel não encontrado.');
+      if (item.status !== 'fora') throw new ErroUsuario(item.status === 'devolvido' ? 'Esse item já foi devolvido.' : 'Esse aluguel foi cancelado.');
+      await atualizar(ctx.tx, 'itens_alugados', item.id, { status: 'devolvido', devolvido_em: ctx.agora, recebido_por: ctx.quem });
+      await ctx.tx.query('update produtos set estoque = estoque + $2 where id = $1', [item.produto_id, item.qtd]);
+      const atraso = item.devolver_ate ? D.minutosEntre(item.devolver_ate, ctx.agora) : 0;
+      return { resumo: `Recebeu de volta ${item.qtd}× ${item.nome}, alugado para ${item.cliente}${atraso > 10 ? `, ${atraso} min depois do combinado` : ''}.` };
     }
   }
 };

@@ -1,4 +1,5 @@
-import { esc, icone, dinheiro, dataCurta, dataLonga, dataExtenso, plural, telefone, linkWhatsapp, tamanhoArquivo, selo, vazio, avisar, abrirModal, confirmar, campo, campoDinheiro } from '../ui.js';
+import { esc, icone, dinheiro, dataCurta, dataLonga, dataExtenso, plural, telefone, tamanhoArquivo, selo, vazio, avisar, abrirModal, confirmar, campo, campoDinheiro } from '../ui.js';
+import { zap, conversa, primeiroNome } from '../mensagens.js';
 import { api } from '../api.js';
 import { fatos, campoForma, nomeForma } from './comum.js';
 
@@ -80,12 +81,24 @@ function cancelar(ctx, e) {
   });
 }
 
+/** A mensagem muda com a fase do evento: orçamento, saldo a acertar ou só o lembrete. */
+function conversaDoEvento(e) {
+  const dados = {
+    nome: primeiroNome(e.contratante), evento: e.titulo, data: dataCurta(e.data), espaco: e.espaco || 'combinado',
+    horario: e.inicio ? `das ${e.inicio} às ${e.fim || ''}`.trim() : 'no horário combinado',
+    valor: dinheiro(e.valor), sinal: dinheiro(e.sinal || 0), saldo: dinheiro(e.saldo)
+  };
+  if (e.status === 'orcamento') return [zap('orcamento_evento', e.telefone, dados), 'Lembrar do orçamento'];
+  if (e.status === 'confirmado') return e.saldo > 0 ? [zap('evento_saldo', e.telefone, dados), 'Lembrar do evento e do saldo'] : [zap('evento_lembrete', e.telefone, dados), 'Lembrar do evento'];
+  return [conversa(e.telefone, e.contratante), 'WhatsApp'];
+}
+
 function painel(ctx, id) {
   const conteudo = () => {
     const e = ctx.dadosAtuais().eventos.find(x => x.id === id);
     if (!e) return '<p class="nota">Evento não encontrado.</p>';
     const pago = e.valor ? Math.min(100, e.pago / e.valor * 100) : 0;
-    const zap = linkWhatsapp(e.telefone, `Olá, ${e.contratante.split(' ')[0]}! Sobre o evento "${e.titulo}" em ${dataCurta(e.data)}: `);
+    const [link, rotulo] = conversaDoEvento(e);
     return `
       <div class="ficha">
         <div><span>Data</span><b>${esc(dataLonga(e.data))}${e.inicio ? `, ${esc(e.inicio)} às ${esc(e.fim || '')}` : ''}</b></div>
@@ -106,7 +119,7 @@ function painel(ctx, id) {
       <div class="cabecalho-acoes" style="margin-top:16px">
         ${e.status !== 'cancelado' && e.saldo > 0 ? '<button type="button" class="botao primario" data-e="pagar">Registrar pagamento</button>' : ''}
         ${e.status === 'confirmado' && e.dias <= 0 ? '<button type="button" class="botao" data-e="realizado">Marcar como realizado</button>' : ''}
-        ${zap ? `<a class="botao" href="${esc(zap)}" target="_blank" rel="noopener">${icone('whatsapp')}WhatsApp</a>` : ''}
+        ${link ? `<a class="botao" href="${esc(link)}" target="_blank" rel="noopener">${icone('whatsapp')}${rotulo}</a>` : ''}
         ${e.status !== 'cancelado' && e.status !== 'realizado' ? '<button type="button" class="botao" data-e="editar">Editar</button><button type="button" class="botao perigo" data-e="cancelar">Cancelar</button>' : ''}
       </div>
       ${e.pagamentos.length ? `<div class="separador"></div><h3 class="sub-titulo">Pagamentos</h3><ul class="agenda-lista">${e.pagamentos.map(p => `<li><time>${esc(dataCurta(p.em))}</time><div><b>${p.sentido === 'saida' ? 'Devolução' : 'Recebido'}</b><small>${esc(nomeForma(ctx.dadosAtuais().formas, p.forma))}</small></div><b>${p.sentido === 'saida' ? '− ' : ''}${esc(dinheiro(p.valor))}</b></li>`).join('')}</ul>` : ''}

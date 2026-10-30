@@ -23,6 +23,7 @@ const CONTAS = {
   receita_parque: { nome: 'Parque infantil', grupo: 'receita', area: 'parque' },
   receita_loja: { nome: 'Loja', grupo: 'receita', area: 'loja' },
   receita_bilheteria: { nome: 'Bilheteria e day use', grupo: 'receita', area: 'bilheteria' },
+  receita_equipamentos: { nome: 'Aluguel de equipamentos', grupo: 'receita', area: 'equipamentos' },
   receita_quadras: { nome: 'Quadras', grupo: 'receita', area: 'quadras' },
   receita_eventos: { nome: 'Eventos e festas', grupo: 'receita', area: 'eventos' },
   receita_outras: { nome: 'Outras receitas', grupo: 'receita', area: 'outras' },
@@ -45,6 +46,7 @@ const AREAS = {
   parque: 'Parque infantil',
   loja: 'Loja',
   bilheteria: 'Bilheteria e day use',
+  equipamentos: 'Aluguel de equipamentos',
   quadras: 'Quadras',
   eventos: 'Eventos e festas',
   outras: 'Outras receitas'

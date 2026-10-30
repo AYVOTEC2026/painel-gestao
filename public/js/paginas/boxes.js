@@ -1,4 +1,5 @@
-import { esc, icone, dinheiro, dataCurta, dataLonga, mesNome, plural, telefone, linkWhatsapp, tamanhoArquivo, selo, vazio, avisar, abrirModal, confirmar, campo, campoDinheiro } from '../ui.js';
+import { esc, icone, dinheiro, dataCurta, dataLonga, mesNome, mesCurto, plural, telefone, tamanhoArquivo, selo, vazio, avisar, abrirModal, confirmar, campo, campoDinheiro } from '../ui.js';
+import { zap, conversa, primeiroNome } from '../mensagens.js';
 import { api } from '../api.js';
 import { abas, abaAtual, seletorMes, fatos, campoForma, nomeForma } from './comum.js';
 
@@ -21,10 +22,23 @@ function seloContrato(c) {
   return selo('Em dia', 'ok');
 }
 
-const mensagemCobranca = (c, cobrancas) => {
-  const lista = cobrancas.map(b => `${b.descricao.toLowerCase()} (${dinheiro(b.valor)}, venceu em ${dataCurta(b.vencimento)})`).join('; ');
-  return `Olá, ${(c.responsavel || c.locatario).split(' ')[0]}! Tudo bem? Consta em aberto no box ${c.box}: ${lista}. Total de ${dinheiro(c.vencido)}. Pode verificar, por favor?`;
-};
+/** Cobrança do que venceu, com o texto de Administração, aba Mensagens. */
+const zapCobranca = (c, cobrancas) => zap('aluguel_vencido', c.telefone, {
+  nome: primeiroNome(c.responsavel || c.locatario), box: c.box, total: dinheiro(c.vencido), dias: plural(c.maiorAtraso, 'dia', 'dias'),
+  cobrancas: cobrancas.map(b => `${b.descricao.toLowerCase()} (${dinheiro(b.valor)}, venceu em ${dataCurta(b.vencimento)})`).join('; ')
+});
+
+/** Conversas que fazem sentido para o box agora: cobrar, lembrar do aluguel, falar da renovação. */
+function conversasDoBox(c) {
+  const nome = primeiroNome(c.responsavel || c.locatario);
+  const proxima = c.historico.filter(b => b.status === 'aberta' && b.situacao !== 'vencida').sort((a, b) => (a.vencimento < b.vencimento ? -1 : 1))[0];
+  const lista = [
+    c.vencido > 0 && [zapCobranca(c, c.historico.filter(b => b.situacao === 'vencida')), 'Cobrar no WhatsApp'],
+    !c.vencido && proxima && [zap('aluguel_lembrete', c.telefone, { nome, box: c.box, mes: mesCurto(proxima.competencia), valor: dinheiro(proxima.valor), vencimento: dataCurta(proxima.vencimento) }), 'Lembrar do aluguel'],
+    c.diasParaFim != null && c.diasParaFim >= 0 && c.diasParaFim <= 60 && [zap('contrato_renovacao', c.telefone, { nome, box: c.box, fim: dataLonga(c.fim), dias: plural(c.diasParaFim, 'dia', 'dias') }), 'Falar da renovação']
+  ].filter(x => x && x[0]);
+  return lista.length || !c.telefone ? lista : [[conversa(c.telefone, nome), 'WhatsApp']];
+}
 
 /* -------------------------------------------------------------- modais */
 
@@ -177,7 +191,6 @@ function painelDoBox(ctx, unidadeId) {
       return `<div class="vazio"><div class="vazio-icone">${icone('boxes')}</div><h3>Box livre</h3><p>${esc(u.tipoNome)}${u.area ? `, ${String(u.area).replace('.', ',')} m²` : ''}. ${esc(u.observacao || '')}</p>
         <button type="button" class="botao primario" data-b="novo">Fechar contrato</button> <button type="button" class="botao" data-b="unidade">Editar box</button></div>`;
     }
-    const zap = c.vencido > 0 ? linkWhatsapp(c.telefone, mensagemCobranca(c, c.historico.filter(b => b.situacao === 'vencida'))) : linkWhatsapp(c.telefone, `Olá, ${(c.responsavel || c.locatario).split(' ')[0]}! `);
     return `
       <div class="ficha">
         <div><span>Aluguel</span><b>${esc(dinheiro(c.valor))} por mês</b></div>
@@ -191,7 +204,7 @@ function painelDoBox(ctx, unidadeId) {
       </div>
       ${c.observacoes ? `<p class="nota" style="margin-top:12px">${esc(c.observacoes)}</p>` : ''}
       <div class="cabecalho-acoes" style="margin-top:14px">
-        ${zap ? `<a class="botao pequeno" href="${esc(zap)}" target="_blank" rel="noopener">${icone('whatsapp')}${c.vencido > 0 ? 'Cobrar no WhatsApp' : 'WhatsApp'}</a>` : ''}
+        ${conversasDoBox(c).map(([link, rotulo]) => `<a class="botao pequeno" href="${esc(link)}" target="_blank" rel="noopener">${icone('whatsapp')}${rotulo}</a>`).join('')}
         <button type="button" class="botao pequeno" data-b="editar">${icone('lapis')}Editar contrato</button>
         <button type="button" class="botao pequeno" data-b="avulsa">${icone('mais')}Cobrança avulsa</button>
         <button type="button" class="botao pequeno perigo" data-b="encerrar">Encerrar</button>
@@ -309,12 +322,12 @@ function cobrancas(d) {
 function inadimplencia(d) {
   if (!d.inadimplentes.length) return `<div class="tudo-certo">${icone('certo')}Nenhum locatário em atraso. Todos os aluguéis vencidos foram recebidos.</div>`;
   return `<div class="inadimplentes">${d.inadimplentes.map(c => {
-    const zap = linkWhatsapp(c.telefone, mensagemCobranca(c, c.cobrancas));
+    const link = zapCobranca(c, c.cobrancas);
     return `<article class="bloco devedor">
       <div class="bloco-cabeca"><div><h2>${esc(c.locatario)}</h2><p>Box ${esc(c.box)}${c.responsavel ? `, ${esc(c.responsavel)}` : ''}${c.telefone ? `, ${esc(telefone(c.telefone))}` : ''}</p></div>
         <div class="devedor-total"><strong>${esc(dinheiro(c.vencido))}</strong><span>atraso de até ${plural(c.maiorAtraso, 'dia', 'dias')}</span></div></div>
       <ul class="devedor-lista">${c.cobrancas.map(b => `<li><span>${esc(b.descricao)}, venceu em ${esc(dataCurta(b.vencimento))}</span><b>${esc(dinheiro(b.valor))}</b><button type="button" class="botao pequeno" data-c="receber" data-id="${b.id}">Receber</button></li>`).join('')}</ul>
-      <div class="cabecalho-acoes">${zap ? `<a class="botao" href="${esc(zap)}" target="_blank" rel="noopener">${icone('whatsapp')}Cobrar no WhatsApp</a>` : '<span class="nota">Sem WhatsApp cadastrado.</span>'}</div>
+      <div class="cabecalho-acoes">${link ? `<a class="botao" href="${esc(link)}" target="_blank" rel="noopener">${icone('whatsapp')}Cobrar no WhatsApp</a>` : '<span class="nota">Sem WhatsApp cadastrado.</span>'}</div>
     </article>`;
   }).join('')}</div>`;
 }

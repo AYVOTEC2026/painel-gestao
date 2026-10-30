@@ -1,8 +1,9 @@
 /* Peças repetidas entre as telas: mês, abas, números de destaque, forma de pagamento, caixa. */
 
-import { esc, icone, dinheiro, dataCurta, mesNome, somarMes, tamanhoArquivo, abrirModal, campo, campoDinheiro, avisar, zonaDeArquivos } from '../ui.js';
+import { esc, icone, dinheiro, dataCurta, hora, mesNome, somarMes, telefone, selo, tamanhoArquivo, abrirModal, campo, campoDinheiro, avisar, zonaDeArquivos } from '../ui.js';
 import { api, tipoDoArquivo } from '../api.js';
 import { lerNotaFiscal } from '../nota-fiscal.js';
+import { zap, conversa, primeiroNome } from '../mensagens.js';
 
 /** Seletor de mês com setas. Muda a rota mantendo a aba. */
 export function seletorMes(mes, mesAtual, rotaBase) {
@@ -55,6 +56,35 @@ export function abrirCaixa(ctx) {
 export const avisoCaixaFechado = () => `<div class="faixa-demo faixa-neutra">${icone('info')}<span><b>Caixa fechado.</b> Pix e cartão funcionam normalmente; para receber em dinheiro, abra o caixa.</span><button type="button" class="botao pequeno" data-abrir-caixa>Abrir o caixa</button></div>`;
 
 export const valorOuTraco = v => (v ? dinheiro(v) : '—');
+
+/* ------------------------------------------------- aluguel de equipamentos */
+
+export const PERIODOS = { hora: 'por hora', dia: 'por dia', uso: 'por uso' };
+
+/** Tempo escolhido no aluguel, como aparece na comanda: "2 h", "3 dias". */
+export const tempoDoAluguel = (periodo, n) => (periodo === 'hora' ? `${n} h` : periodo === 'dia' ? (n === 1 ? '1 dia' : `${n} dias`) : 'por uso');
+
+/** Hora de hoje ("17:10") ou de outro dia ("22:00 de 31/10"). */
+const horaCombinada = (momento, agora) => (String(momento).slice(0, 10) === String(agora).slice(0, 10) ? hora(momento) : `${hora(momento)} de ${dataCurta(momento)}`);
+
+const itemNaFrase = a => {
+  const nome = a.nome.charAt(0).toLowerCase() + a.nome.slice(1);
+  return a.qtd === 1 ? nome : `${a.qtd} unidades de ${nome}`;
+};
+
+/** Itens alugados que estão com clientes: quem levou, até quando, o atraso e a devolução. */
+export function htmlAlugados(lista, agora) {
+  return `<ul class="alugados">${lista.map(a => {
+    const link = a.devolverAte
+      ? zap('item_devolucao', a.telefone, { nome: primeiroNome(a.cliente), item: itemNaFrase(a), saiu: horaCombinada(a.saiuEm, agora), ate: horaCombinada(a.devolverAte, agora) })
+      : conversa(a.telefone, a.cliente);
+    return `<li class="${a.atrasado ? 'atrasado' : ''}">
+      <div class="alugado-item"><b>${a.qtd}× ${esc(a.nome)}</b><small>${esc(a.cliente)}${a.telefone ? `, ${esc(telefone(a.telefone))}` : ''}</small></div>
+      <div class="alugado-tempo">${!a.devolverAte ? '<span>Volta ao fim do uso</span>' : a.atrasado ? selo(`Devia ter voltado às ${horaCombinada(a.devolverAte, agora)}`, 'problema') : `<span>Volta até <b>${esc(horaCombinada(a.devolverAte, agora))}</b></span>`}<small>Saiu às ${esc(horaCombinada(a.saiuEm, agora))}</small></div>
+      <div class="alugado-acoes">${link ? `<a class="botao pequeno fantasma" href="${esc(link)}" target="_blank" rel="noopener" aria-label="Chamar ${esc(a.cliente)} no WhatsApp">${icone('whatsapp')}</a>` : ''}<button type="button" class="botao pequeno" data-devolver="${a.id}">${icone('certo')}Devolvido</button></div>
+    </li>`;
+  }).join('')}</ul>`;
+}
 
 export const ACEITA_ARQUIVOS = 'application/pdf,image/jpeg,image/png,image/webp,.xml,text/xml,application/xml';
 const TIPOS_ACEITOS = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'application/xml', 'text/xml'];

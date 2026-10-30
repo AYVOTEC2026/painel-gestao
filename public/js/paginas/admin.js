@@ -1,9 +1,13 @@
 import { esc, icone, dinheiro, iniciais, selo, avisar, abrirModal, confirmar, campo, campoDinheiro, validarEmPortugues } from '../ui.js';
 import { api } from '../api.js';
+import { preencher } from '../mensagens.js';
 import { abas, abaAtual } from './comum.js';
 
-const ABAS = ['complexo', 'equipe', 'parque', 'quadras', 'eventos', 'historico', 'demonstracao'];
+const ABAS = ['complexo', 'equipe', 'parque', 'quadras', 'eventos', 'mensagens', 'historico', 'demonstracao'];
 let equipe = null;
+// Mensagem aberta no editor e textos ainda não salvos, que sobrevivem à troca de mensagem.
+let mensagemAberta = null;
+const rascunhos = {};
 
 const senhaSugerida = () => {
   const l = 'abcdefghjkmnpqrstuvwxyz';
@@ -132,6 +136,103 @@ function eventosAba(d) {
   </section>`;
 }
 
+/* --------------------------------------------------- mensagens do WhatsApp */
+
+const variaveisErradas = (m, texto) => [...new Set([...texto.matchAll(/\{([^{}]*)\}/g)].map(x => x[1]))].filter(v => !m.variaveis[v]);
+
+/** O texto como chega: as variáveis viram o exemplo, destacadas; as que não existem ficam marcadas. */
+const previa = (m, texto) => esc(texto).replace(/\{([^{}]*)\}/g, (marca, v) => (m.variaveis[v] ? `<mark>${esc(m.exemplo[v])}</mark>` : `<mark class="desconhecida">${marca}</mark>`));
+
+const situacaoDaMensagem = m => (rascunhos[m.id] != null ? 'Não salva' : m.editada ? 'Editada' : 'Texto padrão');
+
+function mensagensAba(d) {
+  const atual = d.mensagens.find(m => m.id === mensagemAberta) || d.mensagens[0];
+  mensagemAberta = atual.id;
+  const grupos = [...new Set(d.mensagens.map(m => m.grupo))];
+  const texto = rascunhos[atual.id] != null ? rascunhos[atual.id] : atual.texto;
+  return `<section class="bloco">
+    <div class="bloco-cabeca"><div><h2>Mensagens do WhatsApp</h2><p>Os textos que a equipe envia pelos botões de WhatsApp do sistema. Escreva do jeito que o complexo fala; nome, valor e data de cada pessoa entram sozinhos.</p></div></div>
+    <div class="mensagens">
+      <nav class="mensagens-lista" aria-label="Mensagens">${grupos.map(g => `
+        <div class="mensagens-grupo"><span>${esc(g)}</span>${d.mensagens.filter(m => m.grupo === g).map(m => `
+          <button type="button" class="mensagem-item ${m.id === atual.id ? 'ativa' : ''}" data-msg="${m.id}" ${m.id === atual.id ? 'aria-current="true"' : ''}>
+            <b>${esc(m.titulo)}</b><small class="${rascunhos[m.id] != null ? 'rascunho' : m.editada ? 'editada' : ''}">${situacaoDaMensagem(m)}</small>
+          </button>`).join('')}</div>`).join('')}
+      </nav>
+      <div class="mensagem-editor">
+        <div class="mensagem-cabeca"><h3>${esc(atual.titulo)}</h3><p>${esc(atual.quando)}</p></div>
+        <div class="mensagem-corpo">
+          <div class="mensagem-escrita">
+            <label for="msgTexto">Texto da mensagem</label>
+            <textarea id="msgTexto" rows="8" maxlength="1000" spellcheck="true">${esc(texto)}</textarea>
+            <div class="mensagem-info"><span id="msgAviso" role="status"></span><span id="msgContador"></span></div>
+            <div class="variaveis" role="group" aria-label="Colocar uma variável no texto">${Object.entries(atual.variaveis).map(([v, desc]) => `
+              <button type="button" class="variavel" data-var="${esc(v)}"><b>{${esc(v)}}</b><span>${esc(desc)}</span></button>`).join('')}</div>
+          </div>
+          <div class="mensagem-previa" aria-live="polite">
+            <span>Como chega no WhatsApp</span>
+            <div class="previa-chat"><div class="previa-balao" id="msgPrevia"></div></div>
+            <small>Com dados de exemplo. Os destacados mudam para cada pessoa.</small>
+          </div>
+        </div>
+        <div class="mensagem-acoes">
+          <button type="button" class="botao primario" data-msg-acao="salvar">Salvar mensagem</button>
+          ${atual.editada || rascunhos[atual.id] != null ? '<button type="button" class="botao" data-msg-acao="padrao">Voltar ao texto padrão</button>' : ''}
+          <a class="botao fantasma" id="msgTestar" target="_blank" rel="noopener">${icone('whatsapp')}Testar no meu WhatsApp</a>
+        </div>
+      </div>
+    </div>
+  </section>`;
+}
+
+function ligarMensagens(corpo, ctx) {
+  const m = ctx.dadosAtuais().mensagens.find(x => x.id === mensagemAberta);
+  const area = corpo.querySelector('#msgTexto');
+  if (!m || !area) return;
+  const mostrar = () => {
+    const erradas = variaveisErradas(m, area.value);
+    corpo.querySelector('#msgPrevia').innerHTML = previa(m, area.value) || '<span class="nota">A mensagem está vazia.</span>';
+    corpo.querySelector('#msgAviso').textContent = erradas.length ? `${erradas.map(v => `{${v}}`).join(', ')} não ${erradas.length === 1 ? 'existe' : 'existem'} nesta mensagem.` : '';
+    corpo.querySelector('#msgContador').textContent = `${area.value.length.toLocaleString('pt-BR')} de 1.000 letras`;
+    corpo.querySelector('#msgTestar').href = `https://wa.me/?text=${encodeURIComponent(preencher(area.value, m.exemplo))}`;
+  };
+  area.addEventListener('input', () => {
+    if (area.value === m.texto) delete rascunhos[m.id]; else rascunhos[m.id] = area.value;
+    const marca = corpo.querySelector(`[data-msg="${m.id}"] small`);
+    marca.textContent = situacaoDaMensagem(m);
+    marca.className = rascunhos[m.id] != null ? 'rascunho' : m.editada ? 'editada' : '';
+    mostrar();
+  });
+  mostrar();
+
+  corpo.addEventListener('click', async e => {
+    const item = e.target.closest('[data-msg]');
+    if (item) { mensagemAberta = item.dataset.msg; ctx.desenhar(); return; }
+    const variavel = e.target.closest('[data-var]');
+    if (variavel) {
+      area.focus();
+      area.setRangeText(`{${variavel.dataset.var}}`, area.selectionStart, area.selectionEnd, 'end');
+      area.dispatchEvent(new Event('input'));
+      return;
+    }
+    const botao = e.target.closest('[data-msg-acao]');
+    if (!botao || botao.classList.contains('carregando')) return;
+    const padrao = botao.dataset.msgAcao === 'padrao';
+    const rascunho = rascunhos[m.id];
+    delete rascunhos[m.id];
+    botao.classList.add('carregando');
+    try {
+      await ctx.acao('salvar-mensagem', padrao ? { id: m.id, padrao: true } : { id: m.id, texto: area.value },
+        padrao ? 'A mensagem voltou ao texto padrão.' : 'Mensagem salva. Os botões de WhatsApp já usam o texto novo.');
+      await ctx.atualizarSessao();
+    } catch (err) {
+      if (rascunho != null) rascunhos[m.id] = rascunho;
+      avisar(err.message, 'erro');
+      botao.classList.remove('carregando');
+    }
+  });
+}
+
 function historicoAba() {
   if (!equipe) return '<section class="bloco"><p class="nota">Carregando histórico…</p></section>';
   const frase = a => (!a.usuarioNome || a.usuarioNome === 'Sistema' ? `<b>Sistema:</b> ${esc(a.resumo)}` : `<b>${esc(a.usuarioNome)}</b> ${esc(a.resumo.charAt(0).toLowerCase() + a.resumo.slice(1))}`);
@@ -233,13 +334,13 @@ function operacaoReal(ctx) {
 export default {
   tela: 'admin',
   titulo: 'Administração',
-  descricao: 'Dados do complexo, equipe, parque infantil, quadras, espaços de eventos e o histórico de quem fez o quê.',
+  descricao: 'Dados do complexo, equipe, parque infantil, quadras, espaços de eventos, mensagens do WhatsApp e o histórico de quem fez o quê.',
 
   render(ctx) {
     const d = ctx.dados;
     const aba = abaAtual(ctx.rota, ABAS);
-    const conteudo = { complexo, equipe: equipeAba, parque: parqueAba, quadras: quadrasAba, eventos: eventosAba, historico: historicoAba, demonstracao: demonstracaoAba }[aba](d, ctx);
-    return `${abas('admin', aba, [['complexo', 'Complexo'], ['equipe', 'Equipe'], ['parque', 'Parque infantil'], ['quadras', 'Quadras'], ['eventos', 'Eventos'], ['historico', 'Histórico'], ['demonstracao', 'Demonstração']])}
+    const conteudo = { complexo, equipe: equipeAba, parque: parqueAba, quadras: quadrasAba, eventos: eventosAba, mensagens: mensagensAba, historico: historicoAba, demonstracao: demonstracaoAba }[aba](d, ctx);
+    return `${abas('admin', aba, [['complexo', 'Complexo'], ['equipe', 'Equipe'], ['parque', 'Parque infantil'], ['quadras', 'Quadras'], ['eventos', 'Eventos'], ['mensagens', 'Mensagens'], ['historico', 'Histórico'], ['demonstracao', 'Demonstração']])}
       <div data-aba="${aba}">${conteudo}</div>`;
   },
 
@@ -248,6 +349,7 @@ export default {
     const corpo = raiz.querySelector('#corpoPagina');
     corpo.querySelectorAll('form').forEach(validarEmPortugues);
     if (aba === 'equipe' || aba === 'historico') carregarEquipe(raiz);
+    if (aba === 'mensagens') ligarMensagens(corpo, ctx);
 
     const enviar = (id, fn) => {
       const form = corpo.querySelector(id);

@@ -15,6 +15,7 @@ const R = require('./dominio/regras');
 const { PADRAO, completar } = require('./dominio/configuracao');
 const { criarContexto } = require('./servicos/contexto');
 const { registrarEntrada, registrarSaida } = require('./servicos/parque');
+const CAIXA = require('./servicos/caixa');
 
 const USUARIOS_DEMO = [
   { nome: 'Carla Mendes', email: 'proprietaria@foodpark.demo', papel: 'dono' },
@@ -23,7 +24,7 @@ const USUARIOS_DEMO = [
 ];
 
 const TABELAS = [
-  'unidades', 'contratos', 'cobrancas', 'anexos', 'caixas', 'movimentos_caixa', 'produtos', 'vendas',
+  'unidades', 'contratos', 'cobrancas', 'anexos', 'caixas', 'movimentos_caixa', 'produtos', 'vendas', 'itens_alugados',
   'entradas_parque', 'quadras', 'reservas', 'eventos', 'contas', 'movimentos', 'lancamentos'
 ];
 
@@ -126,9 +127,13 @@ async function gerarDemo(tx, parqueId, agora) {
     ['loja', 'Isotônico', 'Bebidas', 900, 34, 12],
     ['ingresso', 'Day use adulto', 'Day use', 3000, 0, 0],
     ['ingresso', 'Day use criança', 'Day use', 2000, 0, 0],
-    ['ingresso', 'Day use família (2 adultos e 2 crianças)', 'Day use', 8000, 0, 0]
-  ].map(([tipo, nome, categoria, preco, estoque, minimo]) => add('produtos', {
-    tipo, nome, categoria, preco, controla_estoque: tipo === 'loja', estoque, estoque_minimo: minimo, ativo: true, criado_em: hora(inicio, 9)
+    ['ingresso', 'Day use família (2 adultos e 2 crianças)', 'Day use', 8000, 0, 0],
+    // Aluguel: o estoque começa com o total de unidades; no fim, desconta o que ficou com clientes.
+    ['aluguel', 'Raquete de beach tennis para jogar', 'Raquetes', 1500, 10, 0, 'hora'],
+    ['aluguel', 'Guarda-sol com 2 cadeiras', 'Praia', 3000, 12, 0, 'dia'],
+    ['aluguel', 'Bola de futevôlei', 'Bolas', 1000, 4, 0, 'uso']
+  ].map(([tipo, nome, categoria, preco, estoque, minimo, periodo = null]) => add('produtos', {
+    tipo, nome, categoria, preco, periodo, controla_estoque: tipo !== 'ingresso', estoque, estoque_minimo: minimo, ativo: true, criado_em: hora(inicio, 9)
   }));
 
   const quadras = [
@@ -411,23 +416,47 @@ async function gerarDemo(tx, parqueId, agora) {
         e.taxa = receber({ area: 'parque', origem: 'entrada', id: e.id, descricao: `Pulseira ${op.plano.nome}: ${nome}`, valor: op.plano.preco, forma, creditos: [{ conta: 'receita_parque', valor: op.plano.preco }], em: op.em, caixaId: caixa.id, por: e.atendente });
         entradas.push({ e, saida: op.saida });
       } else if (op.tipo === 'venda') {
-        const pedido = r.pesado([['bebida', 6], ['dayuse', 3], ['bola', 1], ['raquete', 0.35], ['acessorio', 0.6]]);
+        const pedido = r.pesado([['bebida', 6], ['dayuse', 3], ['aluguel', 2], ['bola', 1], ['raquete', 0.35], ['acessorio', 0.6]]);
         const escolher = nome => produtos.find(p => p.nome.startsWith(nome));
         let itens;
         if (pedido === 'bebida') itens = [[escolher(r.um(['Água', 'Água', 'Isotônico'])), r.entre(1, 3)]];
         else if (pedido === 'dayuse') itens = r() < 0.3 ? [[escolher('Day use família'), 1]] : [[escolher('Day use adulto'), r.entre(1, 3)], [escolher('Day use criança'), r.entre(0, 2)]];
         else if (pedido === 'bola') itens = [[escolher('Bola'), r.entre(1, 2)]];
         else if (pedido === 'raquete') itens = [[escolher(r.um(['Raquete de beach tennis Pro', 'Raquete de beach tennis Iniciante'])), 1], [escolher('Bola'), 1]];
-        else itens = [[escolher(r.um(['Viseira', 'Garrafa'])), 1]];
-        itens = itens.filter(([, q]) => q > 0).map(([p, qtd]) => ({ produtoId: p.id, nome: p.nome, tipo: p.tipo, qtd, preco: p.preco }));
-        const total = itens.reduce((t, i) => t + i.preco * i.qtd, 0);
+        else if (pedido === 'aluguel') {
+          const qual = r.pesado([['raquete', 6], ['guarda-sol', fimDeSemana ? 4 : 1], ['futevolei', 2]]);
+          if (qual === 'raquete') itens = [[escolher('Raquete de beach tennis para jogar'), r.entre(1, 4), r.pesado([[1, 6], [2, 3], [3, 1]])]];
+          else if (qual === 'guarda-sol') itens = [[escolher('Guarda-sol'), r.entre(1, 2), 1]];
+          else itens = [[escolher('Bola de futevôlei'), 1, 1]];
+        } else itens = [[escolher(r.um(['Viseira', 'Garrafa'])), 1]];
+        itens = itens.filter(([, q]) => q > 0).map(([p, qtd, periodos = 1]) => ({
+          produtoId: p.id, nome: p.nome, tipo: p.tipo, qtd, preco: p.preco, ...(p.tipo === 'aluguel' ? { periodo: p.periodo, periodos } : {})
+        }));
+        const linha = i => i.preco * i.qtd * (i.periodos || 1);
+        const total = itens.reduce((t, i) => t + linha(i), 0);
         const forma = r.pesado([['pix', 40], ['credito', 25], ['debito', 20], ['dinheiro', 15]]);
         const v = add('vendas', { numero: linhas.vendas.length + 1, caixa_id: caixa.id, em: op.em, itens, subtotal: total, desconto: 0, total, forma, taxa: 0, status: 'paga', motivo: null, vendedor: recepcao });
-        const loja = itens.filter(i => i.tipo === 'loja').reduce((t, i) => t + i.preco * i.qtd, 0);
+        const soma = tipo => itens.filter(i => i.tipo === tipo).reduce((t, i) => t + linha(i), 0);
+        const recibo = i => `${i.qtd}× ${i.nome}${i.tipo === 'aluguel' ? ` (aluguel, ${i.periodo === 'hora' ? `${i.periodos} h` : i.periodo === 'dia' ? '1 dia' : 'por uso'})` : ''}`;
         v.taxa = receber({
-          area: 'pdv', origem: 'venda', id: v.id, descricao: `Venda ${String(v.numero).padStart(4, '0')}: ${itens.map(i => `${i.qtd}× ${i.nome}`).join(', ')}`,
-          valor: total, forma, creditos: [{ conta: 'receita_loja', valor: loja }, { conta: 'receita_bilheteria', valor: total - loja }], em: op.em, caixaId: caixa.id
+          area: 'pdv', origem: 'venda', id: v.id, descricao: `Venda ${String(v.numero).padStart(4, '0')}: ${itens.map(recibo).join(', ')}`,
+          valor: total, forma, em: op.em, caixaId: caixa.id,
+          creditos: [['receita_loja', soma('loja')], ['receita_bilheteria', soma('ingresso')], ['receita_equipamentos', soma('aluguel')]].filter(([, valor]) => valor > 0).map(([conta, valor]) => ({ conta, valor }))
         });
+        if (pedido === 'aluguel') {
+          const cliente = `${r.um(ADULTOS)} ${r.um(SOBRENOMES)}`;
+          const fone = telefone(r);
+          itens.forEach(i => {
+            const ate = i.periodo === 'hora' ? D.somarMinutos(op.em, 60 * i.periodos) : i.periodo === 'dia' ? `${dia}T${config.horario.fecha}:00` : null;
+            // Volta perto da hora combinada; a bola de uso livre volta depois de uma partida.
+            const volta = ate ? D.somarMinutos(ate, r.pesado([[-r.entre(1, 15), 6], [r.entre(1, 20), 3]])) : D.somarMinutos(op.em, r.entre(50, 100));
+            const voltou = jaAconteceu(volta);
+            add('itens_alugados', {
+              venda_id: v.id, produto_id: i.produtoId, nome: i.nome, qtd: i.qtd, periodos: i.periodos, cliente, telefone: fone, saiu_em: op.em,
+              devolver_ate: ate, devolvido_em: voltou ? volta : null, recebido_por: voltou ? recepcao : null, status: voltou ? 'devolvido' : 'fora', por: recepcao
+            });
+          });
+        }
       } else if (op.tipo === 'reserva') {
         const res = op.res;
         const forma = r.pesado([['pix', 50], ['credito', 20], ['debito', 20], ['dinheiro', 10]]);
@@ -470,6 +499,12 @@ async function gerarDemo(tx, parqueId, agora) {
     }
   }
 
+  // Item de aluguel: o estoque é o que está livre agora, o total menos o que ficou com clientes.
+  produtos.filter(p => p.tipo === 'aluguel').forEach(p => {
+    const fora = linhas.itens_alugados.filter(a => a.produto_id === p.id && a.status === 'fora').reduce((t, a) => t + a.qtd, 0);
+    p.estoque = Math.max(0, p.estoque - fora);
+  });
+
   // Campos auxiliares do gerador não são colunas: saem antes de gravar.
   for (const t of TABELAS) {
     const lista = linhas[t].map(o => {
@@ -499,22 +534,23 @@ async function garantirUsuariosDemo(tx, parqueId, senha) {
 }
 
 async function apagarOperacao(tx, parqueId) {
-  for (const t of ['lancamentos', 'movimentos', 'anexos', 'cobrancas', 'contratos', 'unidades', 'vendas', 'movimentos_caixa', 'entradas_parque', 'reservas', 'quadras', 'eventos', 'contas', 'produtos', 'caixas']) {
+  for (const t of ['lancamentos', 'movimentos', 'anexos', 'cobrancas', 'contratos', 'unidades', 'itens_alugados', 'vendas', 'movimentos_caixa', 'entradas_parque', 'reservas', 'quadras', 'eventos', 'contas', 'produtos', 'caixas']) {
     await tx.query(`delete from ${t} where parque_id = $1`, [parqueId]);
   }
 }
 
 /** Sobe quando a demonstração ganha dados novos: a de hoje se refaz no próximo ciclo. */
-const VERSAO_DEMO = 1;
+const VERSAO_DEMO = 2;
 
 /** Apaga tudo do complexo e monta a demonstração de hoje, mantendo o nome e os acessos. */
 async function recriarDemo(banco, { parqueId, agora, senha, somenteSeVelha = false }) {
   await banco.transacao(async tx => {
-    const atual = (await tx.query('select demo_dia, demo_versao from parques where id = $1 for update', [parqueId])).rows[0];
+    const atual = (await tx.query('select demo_dia, demo_versao, config from parques where id = $1 for update', [parqueId])).rows[0];
     // Duas telas abertas na virada do dia: a segunda espera a primeira e não refaz o trabalho.
     if (somenteSeVelha && atual && atual.demo_dia === D.diaDe(agora) && atual.demo_versao === VERSAO_DEMO) return;
     await apagarOperacao(tx, parqueId);
-    const config = await gerarDemo(tx, parqueId, agora);
+    // A demonstração é refeita todo dia, mas as mensagens do WhatsApp escritas pela gestão continuam.
+    const config = { ...(await gerarDemo(tx, parqueId, agora)), mensagens: completar(atual && atual.config).mensagens };
     await tx.query(
       'update parques set config = $2, modo = $3, demo_dia = $4, demo_simulado_em = $5, demo_versao = $6 where id = $1',
       [parqueId, JSON.stringify(config), 'demo', D.diaDe(agora), agora, VERSAO_DEMO]
@@ -547,6 +583,33 @@ async function simularParque(banco, { parqueId, agora }) {
         crianca: nome, idade: r.entre(2, 11), responsavel: `${r.um(ADULTOS)} ${nome.split(' ').pop()}`, telefone: telefone(r),
         pulseira: String(r.entre(1, 300)).padStart(3, '0'), planoId: plano.id, forma: r.um(['pix', 'credito', 'debito'])
       }, { em: D.somarMinutos(agora, -r.entre(2, Math.min(plano.minutos, 70))) });
+    }
+
+    // Aluguel de equipamentos: o que passou bem da hora volta, e sempre há raquetes com clientes.
+    const recepcao = agoraEm => criarContexto(tx, { parqueId, usuario: { id: null, nome: USUARIOS_DEMO[1].nome, papel: 'recepcao' }, agora: agoraEm });
+    const alugados = (await tx.query("select * from itens_alugados where parque_id = $1 and status = 'fora'", [parqueId])).rows;
+    let fora = alugados.length;
+    for (const a of alugados) {
+      if (D.minutosEntre(a.devolver_ate || D.somarMinutos(a.saiu_em, 90), agora) > 25) {
+        await CAIXA.ACOES['devolver-item'].executar(await recepcao(agora), { itemId: a.id });
+        fora -= 1;
+      }
+    }
+    const raquete = (await tx.query("select id from produtos where parque_id = $1 and tipo = 'aluguel' and periodo = 'hora' and ativo order by id limit 1", [parqueId])).rows[0];
+    if (raquete && await ctx.caixaAberto()) {
+      for (; fora < 3; fora += 1) {
+        const horas = r.pesado([[1, 3], [2, 1]]);
+        // Às vezes a raquete saiu há mais tempo que o combinado: é o atraso que o PDV e o painel mostram.
+        const atras = r() < 0.35 ? horas * 60 + r.entre(4, 15) : r.entre(5, horas * 60 - 10);
+        try {
+          await CAIXA.ACOES.vender.executar(await recepcao(D.somarMinutos(agora, -atras)), {
+            itens: [{ produtoId: raquete.id, qtd: r.entre(1, 2), periodos: horas }], forma: r.um(['pix', 'credito', 'debito']),
+            cliente: `${r.um(ADULTOS)} ${r.um(SOBRENOMES)}`, telefone: telefone(r)
+          });
+        } catch (_) {
+          break; // Nenhuma raquete livre agora.
+        }
+      }
     }
     await tx.query('update parques set demo_simulado_em = $2 where id = $1', [parqueId, agora]);
   });
