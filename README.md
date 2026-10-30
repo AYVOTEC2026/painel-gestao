@@ -1,17 +1,30 @@
-# AYVO Food Park
+# AYVO Gestão
 
-Sistema de gestão para food park: caixa (PDV) por box, cadastro de lojistas e cardápios, acerto mensal com cada lojista, financeiro e arquivos para o contador. Tem banco de dados (Postgres), login por pessoa e dois perfis de acesso.
+Sistema de gestão para um complexo de lazer com food park: boxes alugados para outras empresas, parque infantil por pulseira, loja e bilheteria (day use), quadras, eventos e festas, financeiro e contabilidade. Tem banco de dados (Postgres), login por pessoa e três perfis de acesso.
 
 ## Quem usa e o que vê
 
 | Perfil | Para quem | Telas |
 |---|---|---|
-| **Gestão** | Proprietária, gerente | Início, Caixa, Boxes e lojistas, Financeiro, Equipe, Configurações, Ajuda |
-| **Caixa** | Funcionário do caixa | Caixa e Ajuda |
+| **Gestão** | Proprietária, gerente | Painel executivo, PDV, Boxes, Parque infantil, Loja e bilheteria, Quadras, Eventos e festas, Contabilidade, Financeiro, Relatórios, Administração |
+| **Recepção** | Caixa da recepção | PDV, Parque infantil, Quadras |
+| **Monitor do parque** | Quem cuida das crianças | Parque infantil |
 
-As permissões são conferidas no servidor, não só escondidas na tela. Toda ação que muda o food park (venda, cancelamento, acerto, cadastro) fica no histórico com o nome de quem fez, em **Equipe > Atividade recente**.
+As permissões são conferidas no servidor, não só escondidas na tela. Toda ação que muda o complexo (venda, pulseira, reserva, recebimento, cancelamento, contrato) fica no histórico com o nome de quem fez, em **Administração > Histórico**.
 
-Cada tela tem um botão **Como funciona?** com a explicação daquela tela. A página **Ajuda** traz o fluxo do dinheiro, a rotina do dia e do mês, um glossário e perguntas frequentes.
+Cada tela tem um botão **Como funciona?** com a explicação daquela tela. A página **Ajuda** traz como o complexo ganha dinheiro, a rotina do dia e do mês, um glossário e perguntas frequentes.
+
+## O que cada área faz
+
+- **Boxes**: contêineres e quiosques alugados para outras empresas. Contrato com o arquivo assinado anexado (PDF ou foto), aluguel lançado sozinho todo mês com o vencimento combinado, cobranças avulsas (energia do medidor), caução, inadimplência com dias de atraso e cobrança pelo WhatsApp.
+- **Parque infantil**: a venda da pulseira cadastra a criança e o responsável e começa a contar o tempo na entrega. A tela mostra quem precisa sair primeiro; na saída, o excedente é calculado pela regra configurada (tolerância e blocos de minutos).
+- **PDV**: o caixa da recepção. Vende produtos da loja e ingressos de day use, calcula o troco, vende pulseira pelo atalho e fecha o caixa conferindo cada forma de pagamento.
+- **Loja e bilheteria**: cadastro, preços e estoque (com aviso de estoque mínimo). A entrada de mercadoria pode virar despesa de compra.
+- **Quadras**: agenda do dia em grade, reserva por toque no horário livre, grupos fixos semanais, recebimento e a lista do que ficou a receber.
+- **Eventos e festas**: orçamento, sinal que confirma a data, pagamentos, saldo, contrato anexado.
+- **Financeiro**: extrato de tudo o que entrou e saiu, contas a pagar e a receber, fechamentos de caixa.
+- **Contabilidade**: resultado do mês por área, saldos, livro contábil e as planilhas do contador.
+- **Relatórios**: resultado mês a mês, receita de cada área, horários de pico do parque, ocupação das quadras e recebimento dos aluguéis.
 
 ## Rodar no computador
 
@@ -21,100 +34,99 @@ createdb painel_gestao                     # Postgres local
 DATABASE_URL=postgres://localhost/painel_gestao SEED_DEMO=true npm run dev
 ```
 
-Abra http://localhost:3000. Na tela de entrada há dois botões de demonstração: **Proprietária** e **Funcionário do caixa** (senha `demo1234`).
-
-Sem `DATABASE_URL` o sistema também sobe, mas em memória: tudo some ao reiniciar. Uma faixa vermelha avisa quando isso acontece.
+Abra http://localhost:3000. Na tela de entrada há três botões de demonstração: **Proprietária**, **Recepção** e **Monitor do parque** (senha `demo1234`). Sem `DATABASE_URL` o servidor não sobe e explica o motivo.
 
 ## Subir na VPS (Easypanel)
 
-1. **Banco:** no projeto do Easypanel, *+ Service* > **Postgres**. Nome sugerido: `painel_gestao_db`. Copie a *Internal Connection URL*.
-2. **App:** *+ Service* > **App**.
-   - *Source*: GitHub, repositório `AYVOTEC2026/painel-gestao`, branch `feat/painel-com-banco` (ou `main` depois do merge), caminho `/`.
-   - *Build*: Dockerfile.
-   - Ative **Auto Deploy** para cada push republicar sozinho.
-3. **Environment** do app:
+1. **Banco:** *+ Serviço* > **Postgres**. Copie a *URL de Conexão Interna*.
+2. **App:** *+ Serviço* > **App**.
+   - *Fonte*: GitHub, repositório `AYVOTEC2026/painel-gestao`, branch `feat/painel-com-banco` (ou `main` depois do merge), caminho `/`.
+   - *Construção*: Dockerfile.
+   - Auto Deploy ligado para cada envio republicar sozinho.
+3. **Ambiente** do app:
 
    ```
-   DATABASE_URL=<Internal Connection URL do passo 1>
+   DATABASE_URL=<URL de Conexão Interna do passo 1>
    SEED_DEMO=true
    SENHA_DEMO=demo1234
+   NOME_DEMO=Pepama
    TZ=America/Fortaleza
    ```
 
-4. **Domains**: aponte o domínio para a porta **3000** com HTTPS ligado.
-5. **Deploy.** As tabelas são criadas sozinhas na primeira subida e a demonstração é carregada. Para conferir, abra `https://<domínio>/api/saude`: a resposta deve ser `{"ok":true,"banco":"postgres"}`.
+4. **Domínios**: destino na porta **3000**, HTTPS ligado.
+5. **Implantar.** As tabelas são criadas e atualizadas sozinhas a cada subida. Para conferir: `https://<domínio>/api/saude` responde `{"ok":true,"banco":"postgres","versao":"..."}`.
 
-Não precisa de volume: tudo fica no Postgres.
+Os anexos (contratos) ficam no próprio Postgres; não precisa de volume.
 
 ### Variáveis
 
 | Variável | Para quê |
 |---|---|
-| `DATABASE_URL` | Conexão com o Postgres. Sem ela, roda em memória. |
+| `DATABASE_URL` | Conexão com o Postgres (obrigatória). |
 | `DATABASE_SSL=1` | Liga TLS para banco fora da VPS. O Postgres do próprio Easypanel não precisa. |
-| `SEED_DEMO=true` | Banco **vazio** nasce com o food park de demonstração e os dois acessos prontos. Banco com dados não é tocado. |
+| `SEED_DEMO=true` | Banco **vazio** nasce com o complexo de demonstração e os três acessos prontos. Banco com dados não é tocado. |
 | `SENHA_DEMO` | Senha dos acessos de demonstração (padrão `demo1234`). |
-| `NOME_DEMO` | Nome do food park na demonstração (padrão `Food Park Central`). Só vale quando o banco nasce; depois, troque em Configurações. |
+| `NOME_DEMO` | Nome do complexo na demonstração. Só vale quando o banco nasce; depois, troque em Administração. |
 | `CODIGO_INSTALACAO` | Sem demonstração, a primeira tela é a de instalação. Com este código definido, só quem tem o código instala. |
-| `TZ` | Fuso do food park (padrão `America/Fortaleza`). Define o "hoje" das vendas. |
+| `TZ` | Fuso do complexo (padrão `America/Fortaleza`). Define o "hoje" das vendas, das pulseiras e da agenda. |
 
 ## Da demonstração para a operação real
 
-A demonstração é recriada todo dia, com cinco lojistas e o mês corrente de vendas, para o painel sempre parecer vivo na apresentação. Quando a cliente fechar:
+A demonstração tem 10 boxes (8 alugados, um inadimplente e um contrato terminando), parque com crianças entrando e saindo, loja, quadras com grupos fixos e festas com sinal pago. Ela é recriada todo dia e o parque recebe e libera crianças sozinho, para a apresentação sempre parecer viva. Quando a cliente fechar:
 
-1. Ela entra como **Proprietária** e clica em **Começar operação real** (na faixa do topo ou em Configurações).
-2. Informa o nome do food park, os boxes, a taxa e cria o **próprio acesso** (e-mail e senha).
+1. Ela entra como **Proprietária** e clica em **Começar operação real** (na faixa do topo ou em Administração > Demonstração).
+2. Informa o nome do complexo e cria o **próprio acesso**.
 3. O sistema apaga os dados fictícios, desliga os acessos de demonstração e a deixa logada com a conta nova.
-4. Em **Equipe**, ela cadastra os funcionários do caixa.
-
-Para uma instalação nova sem demonstração, suba sem `SEED_DEMO` e defina `CODIGO_INSTALACAO`. A primeira pessoa que abrir o endereço com o código cria o food park e o acesso de gestão.
+4. Em **Administração** ela cadastra as quadras, os tempos e preços do parque, os espaços de eventos e a equipe; em **Boxes**, os contêineres e contratos; em **Loja e bilheteria**, os produtos e o day use.
 
 ## Como o dinheiro é contabilizado
 
-A regra fica em [server/dominio/ledger.js](server/dominio/ledger.js), em partidas dobradas (cada lançamento tem débito e crédito iguais). O servidor se recusa a gravar qualquer operação que desequilibre o livro.
+As regras ficam em [server/dominio/contabil.js](server/dominio/contabil.js), em partidas dobradas: cada operação grava débitos e créditos iguais, e o servidor recusa gravar qualquer operação que não feche.
 
-- **Dinheiro em espécie** fica com o lojista; a taxa do food park sobre a venda vira conta a receber.
-- **Pix, cartão e voucher** entram no food park, que fica devendo ao lojista o líquido (sem taxa do parque e sem maquininha).
-- O **acerto do mês** compensa as duas coisas e o aluguel em aberto, e resulta em um único valor: pagar ou receber.
-- O **faturamento dos boxes** não é receita do food park. Receita é aluguel, taxa e outras receitas.
+- **Receitas por área**: aluguel dos boxes, cobranças aos locatários, multas de atraso, parque infantil, loja, bilheteria e day use, quadras, eventos, outras.
+- **Aluguel** é receita do mês a que pertence (competência), lançado no início do mês; o recebimento baixa o "aluguéis a receber". O que fica em aberto depois do vencimento é a inadimplência.
+- **Venda no cartão** separa a taxa da maquininha como despesa; o líquido fica em "cartões a receber".
+- **Caução** é dinheiro do locatário guardado pelo complexo (passivo), não receita.
+- **Caixa**: o troco entra na gaveta ao abrir; no fechamento o dinheiro contado é recolhido e qualquer diferença vira quebra de caixa.
 
 ## Estrutura
 
 ```
 server/
-  main.js              sobe o servidor, migra o banco, carrega a demonstração
-  app.js               rotas da API, login, permissões, cabeçalhos de segurança
-  acesso.js            senha (scrypt), sessão por cookie, freio de tentativas
-  dominio/ledger.js    regras do food park e contabilidade (também roda no navegador para prévia da venda)
-  dominio/acoes.js     cada ação do sistema: quem pode e o que ela muda
-  dominio/visao.js     o que cada tela recebe, conforme o perfil
-  persistencia/        Postgres (produção) e memória (testes), mesma interface
+  main.js                 sobe o servidor, migra o banco, mantém a demonstração do dia
+  app.js                  rotas da API, login, permissões, anexos, cabeçalhos de segurança
+  acesso.js               senha (scrypt), sessão por cookie, freio de tentativas
+  demo.js                 gera a demonstração em lote e simula o movimento do parque
+  dominio/                regras puras: contabilidade, datas, dinheiro, parque, quadras, aluguéis, perfis
+  servicos/               cada ação do sistema numa transação (caixa, parque, quadras, eventos, locações...)
+  consultas/              o que cada tela recebe, e as planilhas do contador
+  persistencia/           conexão, migrações SQL e acessos (pessoas, sessões, histórico)
 public/
   index.html, css/app.css
-  js/app.js            moldura, menu e rotas
-  js/paginas/*.js      uma tela por arquivo
-  js/ajuda-conteudo.js textos de ajuda e glossário
-test/                  regras contábeis e API completa (memória e Postgres)
+  js/app.js               moldura, menu, rotas e atualização automática
+  js/paginas/*.js         uma tela por arquivo
+  js/graficos.js          colunas e barras acessíveis, com tabela dos números
+  js/ajuda-conteudo.js    textos de ajuda e glossário
+test/                     regras puras e o roteiro completo da API no Postgres
 ```
 
 ## Testes
 
 ```bash
-npm test                                                   # regras + API em memória
-TEST_DATABASE_URL=postgres://localhost/painel_gestao_test npm test   # inclui o Postgres
+TEST_DATABASE_URL=postgres://localhost/painel_gestao_test npm test
 ```
 
-O banco de teste é apagado a cada execução. Use um banco só para isso.
+Use um banco só para isso: o teste apaga e recria o banco de teste a cada execução. Sem `TEST_DATABASE_URL`, só as regras puras rodam.
 
 ## O que é protótipo e o que falta para produção
 
-Pronto para apresentar e para um piloto com um food park. Antes de escalar:
+O protótipo já guarda tudo em tabelas próprias no Postgres (vendas, pulseiras, reservas, cobranças, livro contábil), com cada operação numa transação. Antes de escalar:
 
-- **Armazenamento:** a operação de cada food park é um documento JSONB, alterado com a linha travada (duas vendas simultâneas entram em fila, sem conflito). Isso aguenta bem um food park por alguns meses. Para volume alto ou vários anos de histórico, vendas e lançamentos devem ir para tabelas próprias.
-- **Uma instância só:** o freio de tentativas de login fica na memória do processo. Com mais de uma réplica, movê-lo para o banco.
-- **Sem integração de pagamento:** Pix, cartão e voucher são registrados manualmente no caixa. Integração com maquininha ou gateway e emissão fiscal ficam para a fase de produção.
-- **Backup:** configurar o backup automático do Postgres no Easypanel antes da operação real.
+- **Uma instância só**: o freio de tentativas de login fica na memória do processo. Com mais de uma réplica, movê-lo para o banco.
+- **Sem integração de pagamento**: Pix, cartão e boleto são registrados manualmente. Integração com maquininha, gateway, boleto automático e emissão fiscal ficam para a fase de produção.
+- **Anexos no banco**: bom para contratos (até 10 MB cada). Para muitos arquivos grandes, mover para um armazenamento de arquivos.
+- **Backup**: ligar as cópias de segurança do Postgres no Easypanel antes da operação real.
 
 ## Versão anterior
 
-O painel estático anterior (HTML com temas sobrepostos e dados no `localStorage`) está preservado na tag `prototipo-estatico`.
+O painel estático original (HTML com temas sobrepostos e dados no `localStorage`) está na tag `prototipo-estatico`.

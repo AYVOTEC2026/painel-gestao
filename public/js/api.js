@@ -3,18 +3,7 @@
 let aoPerderSessao = () => {};
 export const quandoPerderSessao = fn => { aoPerderSessao = fn; };
 
-export async function chamar(metodo, caminho, corpo) {
-  let res;
-  try {
-    res = await fetch(caminho, {
-      method: metodo,
-      credentials: 'same-origin',
-      headers: corpo !== undefined || metodo !== 'GET' ? { 'Content-Type': 'application/json' } : {},
-      body: corpo !== undefined ? JSON.stringify(corpo) : metodo !== 'GET' ? '{}' : undefined
-    });
-  } catch (_) {
-    throw new Error('Sem conexão com o servidor. Confira a internet e tente de novo.');
-  }
+async function responder(res) {
   let dados = {};
   try { dados = await res.json(); } catch (_) { dados = {}; }
   if (res.status === 401 && dados.codigo === 'LOGIN') {
@@ -25,18 +14,55 @@ export async function chamar(metodo, caminho, corpo) {
   return dados;
 }
 
+export async function chamar(metodo, caminho, corpo) {
+  let res;
+  try {
+    res = await fetch(caminho, {
+      method: metodo,
+      credentials: 'same-origin',
+      headers: metodo === 'GET' || metodo === 'DELETE' ? {} : { 'Content-Type': 'application/json' },
+      body: metodo === 'GET' || metodo === 'DELETE' ? undefined : JSON.stringify(corpo || {})
+    });
+  } catch (_) {
+    throw new Error('Sem conexão com o servidor. Confira a internet e tente de novo.');
+  }
+  return responder(res);
+}
+
+const consulta = params => {
+  const q = new URLSearchParams(Object.entries(params || {}).filter(([, v]) => v != null && v !== ''));
+  return q.toString() ? `?${q}` : '';
+};
+
 export const api = {
   publico: () => chamar('GET', '/api/publico'),
   sessao: () => chamar('GET', '/api/sessao'),
   entrar: (email, senha) => chamar('POST', '/api/entrar', { email, senha }),
   sair: () => chamar('POST', '/api/sair'),
   instalar: dados => chamar('POST', '/api/instalar', dados),
-  visao: mes => chamar('GET', '/api/visao' + (mes ? '?mes=' + encodeURIComponent(mes) : '')),
-  acao: (nome, dados, mes) => chamar('POST', `/api/acao/${nome}` + (mes ? '?mes=' + encodeURIComponent(mes) : ''), dados || {}),
+  tela: (nome, params) => chamar('GET', `/api/tela/${nome}${consulta(params)}`),
+  acao: (nome, dados) => chamar('POST', `/api/acao/${nome}`, dados),
   equipe: () => chamar('GET', '/api/equipe'),
   novaPessoa: dados => chamar('POST', '/api/equipe', dados),
   alterarPessoa: (id, dados) => chamar('PATCH', `/api/equipe/${id}`, dados),
   minhaSenha: (atual, nova) => chamar('POST', '/api/minha-senha', { atual, nova }),
   operacaoReal: dados => chamar('POST', '/api/operacao-real', dados),
-  exportar: (arquivo, mes) => `/api/exportar/${arquivo}?mes=${encodeURIComponent(mes)}`
+  carregarDemo: () => chamar('POST', '/api/carregar-demo', {}),
+  exportar: (arquivo, mes) => `/api/exportar/${arquivo}?mes=${encodeURIComponent(mes)}`,
+  anexo: (id, baixar) => `/api/anexos/${id}${baixar ? '?baixar=1' : ''}`,
+  removerAnexo: id => chamar('DELETE', `/api/anexos/${id}`),
+  async enviarAnexo(tipo, id, arquivo) {
+    let res;
+    try {
+      res = await fetch(`/api/anexos?tipo=${tipo}&id=${id}`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': arquivo.type, 'X-Arquivo-Nome': encodeURIComponent(arquivo.name) },
+        body: arquivo
+      });
+    } catch (_) {
+      throw new Error('Sem conexão com o servidor. Confira a internet e tente de novo.');
+    }
+    return responder(res);
+  }
 };

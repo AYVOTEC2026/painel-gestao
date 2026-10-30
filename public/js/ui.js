@@ -34,6 +34,27 @@ export const telefone = v => {
 };
 export const iniciais = nome => String(nome || '?').trim().split(/\s+/).slice(0, 2).map(p => p[0]).join('').toUpperCase();
 export const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
+export const dataLonga = dia => {
+  const [a, m, d] = String(dia || '').slice(0, 10).split('-');
+  return d ? `${d}/${m}/${a}` : '';
+};
+export const somarDias = (dia, n) => {
+  const d = new Date(`${String(dia).slice(0, 10)}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+/** "75" -> "1h15", "40" -> "40 min" */
+export const duracao = minutos => {
+  const m = Math.max(0, Math.round(Number(minutos) || 0));
+  return m >= 60 ? `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}` : `${m} min`;
+};
+export const tamanhoArquivo = bytes => (bytes >= 1048576 ? `${(bytes / 1048576).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`);
+/** Link do WhatsApp com a mensagem já escrita. Telefone sem DDI ganha o 55 do Brasil. */
+export const linkWhatsapp = (fone, mensagem) => {
+  let d = String(fone || '').replace(/\D/g, '');
+  if (d.length === 10 || d.length === 11) d = '55' + d;
+  return d ? `https://wa.me/${d}?text=${encodeURIComponent(mensagem)}` : '';
+};
 
 /* ---------------------------------------------------------------- ícones */
 
@@ -68,7 +89,20 @@ const P = {
   pausa: '<path d="M9 6v12M15 6v12"/>',
   play: '<path d="M8 5.5v13l10-6.5z"/>',
   lapis: '<path d="M4 20l1-4L16 5l3 3L8 19z"/>',
-  cadeado: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'
+  cadeado: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+  painel: '<rect x="3.5" y="3.5" width="7" height="8" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="5" rx="1.5"/><rect x="13.5" y="11.5" width="7" height="9" rx="1.5"/><rect x="3.5" y="14.5" width="7" height="6" rx="1.5"/>',
+  loja: '<path d="M5 8h14l-1 12H6z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>',
+  quadra: '<rect x="3" y="5" width="18" height="14" rx="1.5"/><path d="M12 5v14M3 12h18"/><circle cx="12" cy="12" r="2.5"/>',
+  evento: '<path d="M5 21V10h14v11M3 10h18M12 10v11M7 10c-1.5-2-1-4.5 1-5s3.5 2 4 5c.5-3 2-5.5 4-5s2.5 3 1 5"/>',
+  relatorio: '<path d="M6 3h9l4 4v14H6z"/><path d="M9 17v-3M12 17v-6M15 17v-4"/>',
+  anexo: '<path d="M20 11.5 12 19.5a5 5 0 0 1-7-7l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7L9.7 17.2a1.7 1.7 0 0 1-2.4-2.4L15 7"/>',
+  whatsapp: '<path d="M4 20l1.3-4A8 8 0 1 1 8 18.7z"/><path d="M9 9.5c.3 2 2.3 4.2 4.5 4.8l1.2-1.2 2 .9c-.2 1.3-1.3 2-2.6 1.8C11 15.3 8.4 12.8 8 10c-.1-1.3.6-2.3 1.8-2.6l.9 2z"/>',
+  calendario: '<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
+  pulseira: '<circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="4"/><path d="M12 4.5V2.5"/>',
+  lixeira: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+  olho: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
+  estoque: '<path d="M3 8l9-4 9 4-9 4z"/><path d="M3 8v8l9 4 9-4V8M12 12v8"/>',
+  balanco: '<path d="M5 21V4M19 21V4M4 4h16M10 4v9M14 4v9M8.5 13h7v2.5h-7z"/>'
 };
 
 export const icone = (nome, extra = '') =>

@@ -1,26 +1,32 @@
 'use strict';
 
 /**
- * Dois perfis, pensados para quem usa o food park no dia a dia:
- * a gestão (proprietária, gerente) e o funcionário do caixa.
+ * Três perfis, pensados para quem trabalha no complexo:
+ * a gestão (proprietária, gerente), a recepção (caixa, quadras, parque) e o
+ * monitor do parque infantil (entrada e saída das crianças).
  */
 const PAPEIS = {
   dono: {
     nome: 'Gestão',
-    descricao: 'Vê e altera tudo: vendas, lojistas, financeiro, equipe e configurações.',
-    telas: ['inicio', 'caixa', 'boxes', 'financeiro', 'equipe', 'config', 'ajuda'],
-    inicio: 'inicio'
+    descricao: 'Vê e altera tudo: boxes, financeiro, contabilidade, relatórios, equipe e configurações.',
+    telas: ['painel', 'pdv', 'boxes', 'parque', 'loja', 'quadras', 'eventos', 'contabilidade', 'financeiro', 'relatorios', 'admin', 'ajuda'],
+    inicio: 'painel'
   },
-  caixa: {
-    nome: 'Caixa',
-    descricao: 'Abre e fecha o caixa, registra vendas e cancela vendas do caixa aberto.',
-    telas: ['caixa', 'ajuda'],
-    inicio: 'caixa'
+  recepcao: {
+    nome: 'Recepção',
+    descricao: 'Abre e fecha o caixa, vende na loja e na bilheteria, vende pulseiras e cuida das reservas de quadra.',
+    telas: ['pdv', 'parque', 'quadras', 'ajuda'],
+    inicio: 'pdv'
+  },
+  monitor: {
+    nome: 'Monitor do parque',
+    descricao: 'Registra a entrada e a saída das crianças no parque infantil e acompanha o tempo de cada uma.',
+    telas: ['parque', 'ajuda'],
+    inicio: 'parque'
   }
 };
 
-function papelValido(papel) {
-  return Object.prototype.hasOwnProperty.call(PAPEIS, papel);
-}
+const papelValido = papel => Object.prototype.hasOwnProperty.call(PAPEIS, papel);
+const podeVerTela = (papel, tela) => papelValido(papel) && PAPEIS[papel].telas.includes(tela);
 
-module.exports = { PAPEIS, papelValido };
+module.exports = { PAPEIS, papelValido, podeVerTela };

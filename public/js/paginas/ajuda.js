@@ -1,9 +1,9 @@
 import { esc, icone } from '../ui.js';
 import { GLOSSARIO, ROTINA_DIA, ROTINA_MES, PERGUNTAS } from '../ajuda-conteudo.js';
 
-// O caixa vê só o que é do dia a dia dele.
-const TERMOS_CAIXA = ['Box', 'Lojista', 'Taxa sobre as vendas', 'Taxa da maquininha', 'Fundo de troco', 'Sangria', 'Suprimento', 'Fechamento do caixa', 'Quebra de caixa'];
-const PERGUNTAS_CAIXA = [0, 2, 5];
+// Recepção e monitor veem só o que é do dia a dia deles.
+const TERMOS_EQUIPE = ['Pulseira', 'Tempo excedente', 'Day use', 'Grupo fixo', 'Fundo de troco', 'Sangria', 'Fechamento do caixa', 'Quebra de caixa'];
+const PERGUNTAS_EQUIPE = [0, 1, 2, 5];
 
 const roteiro = itens => `<ol class="roteiro">${itens.map(([t, d]) => `<li><b>${esc(t)}</b><p>${esc(d)}</p></li>`).join('')}</ol>`;
 
@@ -13,31 +13,32 @@ export default {
 
   render(ctx) {
     const gestao = ctx.ehGestao;
-    const termos = gestao ? GLOSSARIO : GLOSSARIO.filter(g => TERMOS_CAIXA.includes(g[0]));
-    const perguntas = gestao ? PERGUNTAS : PERGUNTAS.filter((_, i) => PERGUNTAS_CAIXA.includes(i));
+    const termos = gestao ? GLOSSARIO : GLOSSARIO.filter(g => TERMOS_EQUIPE.includes(g[0]));
+    const perguntas = gestao ? PERGUNTAS : PERGUNTAS.filter((_, i) => PERGUNTAS_EQUIPE.includes(i));
     return `
-      <section class="bloco">
-        <div class="bloco-cabeca"><div><h2>Como o dinheiro circula</h2><p>A ideia central do sistema. Entendendo isto, o resto fica fácil.</p></div></div>
-        <div class="fluxo-dinheiro">
-          <div class="fluxo-no escuro"><b>O cliente paga no box</b><small>O caixa registra o pedido e escolhe a forma de pagamento.</small></div>
-          <div class="fluxo-seta">${icone('seta')}</div>
-          <div class="fluxo-ramos">
-            <div class="fluxo-no"><b>Dinheiro em espécie</b><small>Fica com o lojista. A taxa do food park sobre essa venda fica a receber.</small></div>
-            <div class="fluxo-no"><b>Pix, cartão ou voucher</b><small>Entra na conta do food park, que guarda a parte do lojista.</small></div>
-          </div>
+      ${gestao ? `<section class="bloco">
+        <div class="bloco-cabeca"><div><h2>Como o complexo ganha dinheiro</h2><p>Cada área registra o que recebe. Tudo se junta no financeiro e na contabilidade.</p></div></div>
+        <div class="fluxo-areas">
+          <div class="fluxo-no"><b>${icone('boxes')} Boxes alugados</b><small>Aluguel de cada mês, cobranças avulsas e caução.</small></div>
+          <div class="fluxo-no"><b>${icone('balanco')} Parque infantil</b><small>Pulseira por tempo e o excedente na saída.</small></div>
+          <div class="fluxo-no"><b>${icone('loja')} Loja e bilheteria</b><small>Produtos e day use vendidos no PDV.</small></div>
+          <div class="fluxo-no"><b>${icone('quadra')} Quadras</b><small>Reservas por hora e grupos fixos.</small></div>
+          <div class="fluxo-no"><b>${icone('evento')} Eventos e festas</b><small>Sinal e saldo de cada festa.</small></div>
         </div>
-        <div class="fluxo-dinheiro" style="margin-top:14px;grid-template-columns:1fr">
-          <div class="fluxo-no destaque"><b>No fim do mês, o acerto</b><small>Para cada lojista, o sistema junta o que o food park guardou, a taxa que ele deve e o aluguel em aberto. Sobra um único valor: pagar ou receber.</small></div>
+        <div class="fluxo-seta baixo">${icone('seta')}</div>
+        <div class="fluxo-dinheiro" style="grid-template-columns:1fr 1fr">
+          <div class="fluxo-no escuro"><b>Financeiro</b><small>O dinheiro de verdade: o que entrou, o que saiu, o que falta pagar e receber.</small></div>
+          <div class="fluxo-no destaque"><b>Contabilidade</b><small>O resultado de cada mês e as planilhas para o contador.</small></div>
         </div>
-      </section>
+      </section>` : ''}
 
       <div class="${gestao ? 'ajuda-grade' : ''}" style="margin-top:18px">
         <section class="bloco">
-          <div class="bloco-cabeca"><div><h2>Rotina do dia</h2><p>Na tela Caixa.</p></div></div>
+          <div class="bloco-cabeca"><div><h2>Rotina do dia</h2><p>Recepção e parque.</p></div></div>
           ${roteiro(ROTINA_DIA)}
         </section>
         ${gestao ? `<section class="bloco" style="margin-top:0">
-          <div class="bloco-cabeca"><div><h2>Rotina do mês</h2><p>Na tela Financeiro, de preferência na primeira semana.</p></div></div>
+          <div class="bloco-cabeca"><div><h2>Rotina do mês</h2><p>Gestão, de preferência na primeira semana.</p></div></div>
           ${roteiro(ROTINA_MES)}
         </section>` : ''}
       </div>

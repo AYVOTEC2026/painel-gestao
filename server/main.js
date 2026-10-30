@@ -3,28 +3,38 @@
 const { lerConfig } = require('./config');
 const { relogio } = require('./tempo');
 const { criarApp } = require('./app');
-const { criarRepoPg } = require('./persistencia/repo-pg');
-const { criarRepoMemoria } = require('./persistencia/repo-memoria');
-const { semearDemo } = require('./seed');
+const { conectar } = require('./persistencia/banco');
+const { semearDemo } = require('./demo');
+const { prepararParque } = require('./servicos/preparo');
 
 async function iniciar() {
   const cfg = lerConfig();
-  const agora = relogio(cfg.fuso);
-  const repo = cfg.bancoUrl ? criarRepoPg({ url: cfg.bancoUrl, ssl: cfg.bancoSsl }) : criarRepoMemoria();
   if (!cfg.bancoUrl) {
-    console.warn('[aviso] DATABASE_URL não definida: rodando em memória com a demonstração. Nada fica salvo ao reiniciar.');
+    console.error('[fatal] Defina DATABASE_URL com a conexão do Postgres (no Easypanel: Ambiente do app).');
+    process.exit(1);
   }
-  await repo.iniciar();
-  if (cfg.seedDemo && await semearDemo(repo, cfg, agora)) console.log('[demo] food park de demonstração criado');
+  const agora = relogio(cfg.fuso);
+  const banco = conectar({ url: cfg.bancoUrl, ssl: cfg.bancoSsl });
+  await banco.migrar();
+  if (cfg.seedDemo && await semearDemo(banco, cfg, agora)) console.log('[demo] complexo de demonstração criado');
 
-  const app = criarApp({ cfg, repo, agora });
+  const { app, acessos } = criarApp({ cfg, banco, agora });
   const servidor = app.listen(cfg.porta, cfg.host, () => {
-    console.log(`AYVO Food Park no ar em http://localhost:${cfg.porta} (banco: ${repo.modo}, fuso: ${cfg.fuso})`);
+    console.log(`AYVO Gestão no ar em http://localhost:${cfg.porta} (fuso: ${cfg.fuso})`);
   });
-  setInterval(() => repo.sessoes.limparVencidas().catch(() => {}), 6 * 60 * 60 * 1000).unref();
+
+  // Mantém a demonstração de hoje pronta e o aluguel do mês lançado, mesmo sem ninguém abrir o sistema.
+  const manter = async () => {
+    for (const p of await acessos.parques.todos()) {
+      await prepararParque(banco, { parqueId: p.id, agora: agora(), senhaDemo: cfg.senhaDemo }).catch(err => console.error('[preparo]', err.message));
+    }
+  };
+  manter().catch(() => {});
+  setInterval(() => manter().catch(() => {}), 10 * 60 * 1000).unref();
+  setInterval(() => acessos.sessoes.limparVencidas().catch(() => {}), 6 * 60 * 60 * 1000).unref();
 
   const encerrar = () => {
-    servidor.close(() => repo.fechar().finally(() => process.exit(0)));
+    servidor.close(() => banco.fechar().finally(() => process.exit(0)));
     setTimeout(() => process.exit(0), 5000).unref();
   };
   process.on('SIGTERM', encerrar);

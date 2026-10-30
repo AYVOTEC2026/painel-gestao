@@ -1,8 +1,8 @@
 {
   "name": "painel-gestao",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
-  "description": "AYVO Food Park: PDV por box, repasse aos lojistas, financeiro e arquivos para o contador, com Postgres e acesso por perfil",
+  "description": "AYVO Gestão: boxes alugados, parque infantil por pulseira, loja e bilheteria, quadras, eventos, financeiro e contabilidade, com Postgres e acesso por perfil",
   "main": "server/main.js",
   "type": "commonjs",
   "scripts": {

@@ -1,5 +1,5 @@
 import { api } from './api.js';
-import { esc, icone, marcaSvg, iniciais, campo, campoPorcento, avisar } from './ui.js';
+import { esc, icone, marcaSvg, iniciais, campo, avisar } from './ui.js';
 
 /* Ilustração da praça: contêineres com toldo e varal de luzes. */
 const CENA = `
@@ -36,14 +36,14 @@ const CENA = `
 function arte(titulo, texto) {
   return `
     <section class="entrada-arte">
-      <div class="marca"><div class="marca-selo">${marcaSvg}</div><div><b>AYVO Food Park</b><small>Gestão de praça de alimentação</small></div></div>
+      <div class="marca"><div class="marca-selo">${marcaSvg}</div><div><b>AYVO Gestão</b><small>Food park e lazer</small></div></div>
       <div class="entrada-texto">
         <h1>${esc(titulo)}</h1>
         <p>${esc(texto)}</p>
         <ul class="entrada-lista">
-          <li>${icone('caixa')}<span><b>Caixa por box.</b> Cada venda já mostra quanto fica com o lojista e quanto fica com o food park.</span></li>
-          <li>${icone('troca')}<span><b>Acerto do mês pronto.</b> O sistema calcula o repasse e desconta aluguel e taxas.</span></li>
-          <li>${icone('livro')}<span><b>Arquivos para o contador.</b> Vendas, lançamentos e resultado em planilha, por mês.</span></li>
+          <li>${icone('boxes')}<span><b>Boxes alugados.</b> Contratos anexados, aluguel de cada mês e quem está em atraso.</span></li>
+          <li>${icone('pulseira')}<span><b>Parque por pulseira.</b> A criança é cadastrada e o tempo conta desde a entrega.</span></li>
+          <li>${icone('quadra')}<span><b>Quadras, loja e festas.</b> Agenda, PDV e eventos no mesmo caixa e no mesmo financeiro.</span></li>
         </ul>
       </div>
       ${CENA}
@@ -66,11 +66,11 @@ function login(raiz, pub, aoEntrar) {
   const demo = pub.demo;
   raiz.innerHTML = `
     <div class="entrada">
-      ${arte('O caixa, os lojistas e o contador no mesmo lugar.', 'Feito para a rotina de um food park: abrir o caixa, vender por box, fechar o dia e acertar com cada lojista no fim do mês.')}
+      ${arte('O complexo inteiro num lugar só.', 'Aluguel dos boxes, pulseiras do parque, loja e day use, quadras e festas: cada área com a sua tela e um financeiro que junta tudo.')}
       <section class="entrada-painel">
         <div class="entrada-caixa">
           <h2>Entrar</h2>
-          <p>${esc(pub.nomeParque || 'Food park')}</p>
+          <p>${esc(pub.nomeParque || 'Complexo')}</p>
           <div class="erro-form oculto" id="erroEntrada" role="alert"></div>
           <form id="formEntrada" novalidate>
             ${campo({ nome: 'email', rotulo: 'E-mail', tipo: 'email', obrigatorio: true, extra: 'autocomplete="username" autocapitalize="off"' })}
@@ -84,11 +84,11 @@ function login(raiz, pub, aoEntrar) {
               ${demo.perfis.map(p => `
                 <button type="button" class="perfil-demo" data-email="${esc(p.email)}">
                   <span class="avatar">${esc(iniciais(p.nome))}</span>
-                  <span><b>${esc(p.papel === 'dono' ? 'Proprietária' : 'Funcionário do caixa')}</b><small>${esc(p.descricao)}</small></span>
+                  <span><b>${esc({ dono: 'Proprietária', recepcao: 'Recepção', monitor: 'Monitor do parque' }[p.papel] || p.papelNome)}</b><small>${esc(p.descricao)}</small></span>
                   ${icone('seta')}
                 </button>`).join('')}
             </div>` : ''}
-          <p class="entrada-rodape">Esqueceu a senha? Peça para a gestão do food park definir uma nova em Equipe.</p>
+          <p class="entrada-rodape">Esqueceu a senha? Peça para a gestão definir uma nova em Administração, aba Equipe.</p>
         </div>
       </section>
     </div>`;
@@ -129,7 +129,7 @@ function login(raiz, pub, aoEntrar) {
 function instalacao(raiz, pub, aoEntrar) {
   raiz.innerHTML = `
     <div class="entrada">
-      ${arte('Vamos preparar o seu food park.', 'Leva um minuto: o nome da praça, quantos boxes ela tem e o seu acesso de gestão. Lojistas e cardápios você cadastra depois, com calma.')}
+      ${arte('Vamos preparar o seu complexo.', 'Leva um minuto: o nome do complexo e o seu acesso de gestão. Boxes, quadras, produtos e o parque você cadastra depois, com calma.')}
       <section class="entrada-painel">
         <div class="entrada-caixa">
           <h2>Primeiro acesso</h2>
@@ -137,12 +137,10 @@ function instalacao(raiz, pub, aoEntrar) {
           <div class="erro-form oculto" id="erroInstalar" role="alert"></div>
           <form id="formInstalar" novalidate>
             <div class="form-secao">
-              <h3>O food park</h3>
+              <h3>O complexo</h3>
               <div class="grade-form">
-                ${campo({ nome: 'parqueNome', rotulo: 'Nome do food park', obrigatorio: true, classe: 'inteira', placeholder: 'Ex.: Food Park da Orla' })}
-                ${campo({ nome: 'cidade', rotulo: 'Cidade', placeholder: 'Ex.: Fortaleza, CE' })}
-                ${campo({ nome: 'boxes', rotulo: 'Quantos boxes', tipo: 'number', valor: 8, extra: 'min="1" max="60"' })}
-                ${campoPorcento({ nome: 'taxa', rotulo: 'Taxa sobre as vendas', valor: 10, classe: 'inteira', dica: 'Percentual de cada venda que fica com o food park. Pode ser diferente para cada lojista.' })}
+                ${campo({ nome: 'parqueNome', rotulo: 'Nome do complexo', obrigatorio: true, classe: 'inteira', placeholder: 'Ex.: Pepama Food Park' })}
+                ${campo({ nome: 'cidade', rotulo: 'Cidade', classe: 'inteira', placeholder: 'Ex.: Fortaleza, CE' })}
               </div>
             </div>
             <div class="form-secao">
@@ -170,12 +168,12 @@ function instalacao(raiz, pub, aoEntrar) {
     try {
       const r = await api.instalar({
         codigo: d.codigo,
-        parque: { nome: d.parqueNome, cidade: d.cidade, boxes: d.boxes, taxa: d.taxa },
+        parque: { nome: d.parqueNome, cidade: d.cidade },
         dono: { nome: d.nome, email: d.email, senha: d.senha }
       });
       history.replaceState(null, '', '#/' + r.usuario.inicio);
       await aoEntrar();
-      avisar('Food park criado. Comece cadastrando o primeiro lojista.');
+      avisar('Complexo criado. Comece pela Administração: quadras, parque e equipe.');
     } catch (err) {
       erro.innerHTML = `${icone('alerta')}<span>${esc(err.message)}</span>`;
       erro.classList.remove('oculto');
