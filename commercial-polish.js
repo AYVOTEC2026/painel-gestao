@@ -23,26 +23,6 @@
       d.head.appendChild(s);
     }
 
-    d.querySelectorAll('.table-wrap').forEach(wrap=>{
-      if(wrap.dataset.footerReady)return;
-      const table=wrap.querySelector('table');
-      if(!table)return;
-      wrap.dataset.footerReady='1';wrap.classList.add('has-commercial-footer');
-      const rows=table.querySelectorAll('tbody tr').length;
-      const foot=d.createElement('div');foot.className='table-footer';
-      foot.innerHTML=`<span>Mostrando ${rows?1:0}–${rows} de ${rows} registros</span><div class="pager"><button type="button" disabled>‹</button><button type="button" class="active">1</button><button type="button" disabled>›</button></div>`;
-      wrap.after(foot);
-    });
-
-    const modules=['locacoes','parque','quadras','festas','financeiro','crm','relatorios'];
-    modules.forEach(id=>{
-      const sec=d.getElementById(id);if(!sec||sec.querySelector(':scope > .module-health'))return;
-      const health=d.createElement('div');health.className='module-health';
-      const label=id==='financeiro'?'Conciliação e registros atualizados':id==='crm'?'Base de clientes sincronizada':'Dados operacionais atualizados';
-      health.innerHTML=`<i></i><b>${label}</b><span>Última atualização: agora</span>`;
-      sec.prepend(health);
-    });
-
     d.querySelectorAll('table thead th:last-child').forEach(th=>{if(!th.textContent.trim())th.textContent='Ações'});
   }
 

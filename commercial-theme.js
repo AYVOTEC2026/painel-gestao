@@ -6,7 +6,7 @@
   const state={searchOpen:false,notificationsOpen:false,profileOpen:false};
 
   const pages={
-    dashboard:['Painel executivo','Visão consolidada da operação, receita e pontos de atenção.'],
+    dashboard:['Início','O que precisa da sua atenção hoje.'],
     locacoes:['Locações','Contratos, ocupação, cobranças e renovação dos espaços comerciais.'],
     parque:['Parque infantil','Controle de acesso, permanência, reservas e segurança em tempo real.'],
     quadras:['Quadras','Agenda, ocupação, recorrência e disponibilidade das quadras.'],
@@ -115,20 +115,7 @@
   }
 
   function commercializeCopy(d){
-    d.title='AYVO Gestão | Operação e Performance';
-    document.title='AYVO Gestão | Operação e Performance';
-
-    txt(qs(d,'.login-copy .ey'),'FOOD PARK • UNIDADE NOVA');
-    const loginH1=qs(d,'.login-copy h1');
-    if(loginH1)loginH1.textContent='O caixa do box e o livro do contador no mesmo sistema.';
-    const loginP=qs(d,'.login-copy p');
-    if(loginP)loginP.textContent='Comece sem movimento. Cada venda gera a taxa da administração, o líquido do lojista e o arquivo do mês.';
-    const loginTitle=qs(d,'.login-box h2'); if(loginTitle)loginTitle.textContent='Entrar na operação';
-    const loginText=qs(d,'.login-box p'); if(loginText)loginText.textContent='Depois do acesso, crie o food park vazio ou abra a demonstração para a proprietária.';
-    const demo=qs(d,'.demo-note'); if(demo)demo.innerHTML='<b>Unidade nova.</b> A demonstração só existe para apresentar a operação completa.';
-    const brand=qs(d,'.brand b'); if(brand)brand.textContent='AYVO Gestão';
-    const brandSmall=qs(d,'.brand small'); if(brandSmall)brandSmall.textContent='Operação e performance';
-    const foot=qs(d,'.login-foot'); if(foot)foot.textContent='AYVO Tecnologia • Inteligência que transforma';
+    // Os textos do login ficam em orange-white-theme.js; a marca do menu, em foodpark.js.
 
     const noteLoc=qs(d,'#locacoes .note');
     if(noteLoc)noteLoc.innerHTML='<b>Cobrança automática ativa.</b> WhatsApp conectado • próximo ciclo de cobrança: 05/10 • reajustes e vencimentos monitorados.';
@@ -162,7 +149,7 @@
     const labels={dashboard:'Painel executivo',locacoes:'Locações',parque:'Parque infantil',quadras:'Quadras',festas:'Eventos e festas',financeiro:'Financeiro',crm:'Clientes e CRM',relatorios:'Relatórios',config:'Administração'};
     qsa(d,'.nav button[data-view]').forEach(b=>{const span=b.querySelector('span'); if(span&&labels[b.dataset.view])span.textContent=labels[b.dataset.view]});
     const sideCards=qsa(d,'.side-card');
-    if(sideCards[0])sideCards[0].innerHTML='<small>Unidade atual</small><b>Complexo Família Fortaleza</b>';
+    if(sideCards[0])sideCards[0].innerHTML='<small>Unidade</small><b></b>';
     if(sideCards[1])sideCards[1].innerHTML='<small>Ambiente</small><b style="color:#9eb2c6">Tecnologia por AYVO</b>';
   }
 
@@ -171,13 +158,13 @@
     top.dataset.commercial='1';
     const left=top.firstElementChild;
     if(left){
-      const ey=left.querySelector('.ey'); if(ey)ey.textContent='Complexo Família Fortaleza • Unidade Matriz';
+      const ey=left.querySelector('.ey'); if(ey)ey.textContent='';
       txt(qs(d,'#pageTitle'),pages.dashboard[0]); txt(qs(d,'#pageSub'),pages.dashboard[1]);
     }
     const actions=qs(d,'.actions'); if(!actions)return;
     const wrap=d.createElement('div'); wrap.className='command-actions';
     wrap.innerHTML=`
-      <button class="cmd-btn unit-switcher" type="button" data-unit>${icons.building}<span>Complexo Família • Matriz</span></button>
+      <button class="cmd-btn unit-switcher" type="button" data-unit>${icons.building}<span>Unidade</span></button>
       ${iconButton('Buscar',icons.search,'cmd-search')}
       <button class="cmd-btn primary" type="button" data-quick>${icons.plus}<span>Novo registro</span></button>
       <button class="cmd-icon cmd-notify" type="button" aria-label="Notificações">${icons.bell}<i class="notification-dot"></i></button>
@@ -187,9 +174,9 @@
 
     wrap.querySelector('[data-quick]').onclick=()=>w.openModal&&w.openModal('quickModal');
     wrap.querySelector('.cmd-search').onclick=()=>openSearch(d,w);
-    wrap.querySelector('.cmd-notify').onclick=e=>toggleNotifications(d,e.currentTarget);
+    wrap.querySelector('.cmd-notify').onclick=e=>toggleNotifications(d,e.currentTarget,w);
     wrap.querySelector('[data-profile]').onclick=e=>toggleProfile(d,e.currentTarget,w);
-    wrap.querySelector('[data-unit]').onclick=()=>w.toast&&w.toast('Unidade atual: Complexo Família Fortaleza • Matriz');
+    wrap.querySelector('[data-unit]').onclick=e=>w.toast&&w.toast('Unidade atual: '+clean(e.currentTarget.textContent));
 
     qsa(d,'.nav button[data-view]').forEach(btn=>{
       btn.addEventListener('click',()=>{
@@ -205,52 +192,8 @@
   function buildDashboard(d,w){
     const sec=qs(d,'#dashboard'); if(!sec||sec.dataset.commercial)return;
     sec.dataset.commercial='1';
-    sec.innerHTML=`
-      <div class="executive-kpis">
-        <div class="exec-kpi"><div class="k-label">Receita realizada</div><div class="k-value">R$ 82,3 mil</div><div class="k-foot good">+8,7% vs. mês anterior</div></div>
-        <div class="exec-kpi"><div class="k-label">Resultado operacional</div><div class="k-value">R$ 50,5 mil</div><div class="k-foot good">Margem de 61,3%</div></div>
-        <div class="exec-kpi"><div class="k-label">A receber</div><div class="k-value">R$ 14,2 mil</div><div class="k-foot bad">R$ 7,8 mil vencidos</div></div>
-        <div class="exec-kpi"><div class="k-label">Ocupação dos espaços</div><div class="k-value">74%</div><div class="k-foot">Média consolidada • 30 dias</div></div>
-        <div class="exec-kpi"><div class="k-label">Pessoas no parque</div><div class="k-value" id="dashKids">18</div><div class="k-foot">45% da capacidade atual</div></div>
-      </div>
-      <div class="executive-layout">
-        <div class="exec-card">
-          <div class="exec-head"><h2>Receita por unidade de negócio</h2><span>Setembro/2026</span></div>
-          <div class="revenue-bars">
-            <div class="revenue-row"><span>Locações</span><div class="revenue-track"><i style="width:100%"></i></div><b>R$ 40.800</b></div>
-            <div class="revenue-row"><span>Quadras</span><div class="revenue-track"><i style="width:41%"></i></div><b>R$ 16.920</b></div>
-            <div class="revenue-row"><span>Parque</span><div class="revenue-track"><i style="width:34%"></i></div><b>R$ 13.740</b></div>
-            <div class="revenue-row"><span>Eventos</span><div class="revenue-track"><i style="width:27%"></i></div><b>R$ 10.850</b></div>
-          </div>
-          <div class="commercial-status-strip">
-            <div class="commercial-status"><small>Receita recorrente</small><b>R$ 40,8 mil</b></div>
-            <div class="commercial-status"><small>Receita variável</small><b>R$ 41,5 mil</b></div>
-            <div class="commercial-status"><small>Previsão do mês</small><b>R$ 96,5 mil</b></div>
-          </div>
-        </div>
-        <div class="exec-card">
-          <div class="exec-head"><h2>Atenção necessária</h2><span>4 ocorrências</span></div>
-          <div class="attention-list">
-            <button class="attention-item critical" type="button" data-jump="financeiro"><i class="dot"></i><span><b>2 cobranças vencidas</b><small>R$ 7.800 pendentes de recebimento</small></span><i class="chev">${icons.chevron}</i></button>
-            <button class="attention-item" type="button" data-jump="locacoes"><i class="dot"></i><span><b>Contrato vence em 18 dias</b><small>Contêiner 07 • Açaí & Cia</small></span><i class="chev">${icons.chevron}</i></button>
-            <button class="attention-item info" type="button" data-jump="parque"><i class="dot"></i><span><b>Pico de ocupação às 18h</b><small>32 reservas antecipadas</small></span><i class="chev">${icons.chevron}</i></button>
-            <button class="attention-item" type="button" data-jump="festas"><i class="dot"></i><span><b>Evento com saldo pendente</b><small>Festa Helena • R$ 1.450</small></span><i class="chev">${icons.chevron}</i></button>
-          </div>
-        </div>
-      </div>
-      <div class="executive-secondary">
-        <div class="mini-summary"><div class="mini-head"><b>Operação de hoje</b><span>Atualizado agora</span></div>
-          <div class="mini-line"><span>Check-ins no parque</span><b>67</b></div><div class="mini-line"><span>Reservas de quadra</span><b>18</b></div><div class="mini-line"><span>Eventos programados</span><b>2</b></div><div class="mini-line"><span>Reservas totais</span><b>31</b></div>
-        </div>
-        <div class="mini-summary"><div class="mini-head"><b>Performance comercial</b><span>30 dias</span></div>
-          <div class="mini-line"><span>Propostas emitidas</span><b>23</b></div><div class="mini-line"><span>Contratos fechados</span><b>14</b></div><div class="mini-line"><span>Conversão</span><b>61%</b></div><div class="mini-line"><span>Ticket médio</span><b>R$ 3.575</b></div>
-        </div>
-        <div class="mini-summary"><div class="mini-head"><b>Relacionamento</b><span>90 dias</span></div>
-          <div class="mini-line"><span>Clientes cadastrados</span><b>1.842</b></div><div class="mini-line"><span>Recorrência</span><b>42%</b></div><div class="mini-line"><span>Mensagens entregues</span><b>98,4%</b></div><div class="mini-line"><span>Automações ativas</span><b>4</b></div>
-        </div>
-      </div>
-    `;
-    qsa(sec,'[data-jump]').forEach(b=>b.onclick=()=>navigate(d,b.dataset.jump));
+    // O conteúdo do Início é montado por foodpark.js com os dados reais.
+    sec.innerHTML='<span id="dashKids" hidden></span>';
   }
 
   function enhanceSections(d,w){
@@ -269,24 +212,6 @@
       const strip=d.createElement('div');strip.className='commercial-status-strip';
       strip.innerHTML='<div class="commercial-status"><small>WhatsApp</small><b>Conectado</b></div><div class="commercial-status"><small>Cobrança automática</small><b>Ativa</b></div><div class="commercial-status"><small>Próximo ciclo</small><b>05/10</b></div>';
       locNote.after(strip);
-    }
-
-    const config=qs(d,'#config');
-    if(config&&!qs(d,'#commercialAdminExtra')){
-      const wrap=d.createElement('div');wrap.id='commercialAdminExtra';wrap.className='grid cols2 config-extra';
-      wrap.innerHTML=`
-        <div class="card"><div class="head"><h2>Segurança e acesso</h2><span>Políticas da conta</span></div>
-          <div class="metric"><span>Autenticação em duas etapas</span><b style="color:var(--green)">Disponível</b></div>
-          <div class="metric"><span>Tempo de sessão</span><b>8 horas</b></div>
-          <div class="metric"><span>Registro de atividades</span><b style="color:var(--green)">Ativo</b></div>
-          <div class="metric"><span>Permissões por função</span><b>Configuradas</b></div>
-        </div>
-        <div class="card"><div class="head"><h2>Atividade recente</h2><span>Auditoria</span></div><div class="audit-list">
-          <div class="audit-row"><i class="audit-icon">${icons.shield}</i><span><b>Cobrança enviada para Burger 85</b><small>Administrador • Financeiro</small></span><time>14:32</time></div>
-          <div class="audit-row"><i class="audit-icon">${icons.clock}</i><span><b>Reserva da Quadra 3 atualizada</b><small>Recepção • Agenda</small></span><time>13:58</time></div>
-          <div class="audit-row"><i class="audit-icon">${icons.building}</i><span><b>Contrato do Contêiner 07 revisado</b><small>Administrador • Locações</small></span><time>11:16</time></div>
-        </div></div>`;
-      config.appendChild(wrap);
     }
 
     const rel=qs(d,'#relatorios');
@@ -347,19 +272,9 @@
   function openSearch(d,w){
     qs(d,'#commercialSearch')?.remove();
     const overlay=d.createElement('div');overlay.className='search-overlay';overlay.id='commercialSearch';
-    const records=[
-      ['Painel executivo','Indicadores, receita e alertas','dashboard','Módulo'],
-      ['Locações','Contratos e espaços comerciais','locacoes','Módulo'],
-      ['Parque infantil','Check-ins, reservas e segurança','parque','Módulo'],
-      ['Quadras','Agenda e ocupação','quadras','Módulo'],
-      ['Eventos e festas','Propostas, contratos e checklist','festas','Módulo'],
-      ['Financeiro','Recebíveis e resultado operacional','financeiro','Módulo'],
-      ['Clientes e CRM','Segmentos e campanhas','crm','Módulo'],
-      ['Burger 85','Contêiner 04 • cobrança vencida','financeiro','Cliente'],
-      ['Açaí & Cia','Contêiner 07 • renovação em 18 dias','locacoes','Contrato'],
-      ['Festa Helena','26/09 • saldo de R$ 1.450','festas','Evento']
-    ];
-    overlay.innerHTML=`<div class="search-box"><div class="search-input-wrap">${icons.search}<input type="text" placeholder="Buscar módulo, cliente, contrato ou evento" autofocus></div><div class="search-results"></div></div>`;
+    // foodpark.js fornece as telas ligadas e os lojistas cadastrados.
+    const records=typeof w.ayvoSearchRecords==='function'?w.ayvoSearchRecords():Object.keys(pages).map(id=>[pages[id][0],pages[id][1],id,'Tela']);
+    overlay.innerHTML=`<div class="search-box"><div class="search-input-wrap">${icons.search}<input type="text" placeholder="Buscar tela ou lojista" autofocus></div><div class="search-results"></div></div>`;
     d.body.appendChild(overlay);
     const input=overlay.querySelector('input'),results=overlay.querySelector('.search-results');
     const render=()=>{
@@ -379,26 +294,25 @@
     panel.style.left=Math.max(12,Math.min(innerWidth-width-12,r.right-width))+'px';
   }
 
-  function toggleNotifications(d,anchor){
+  function toggleNotifications(d,anchor,w){
     const existing=qs(d,'#commercialNotifications'); if(existing){existing.remove();return}
     closeTransient(d);
+    // foodpark.js fornece as pendências reais (caixa, aluguéis e contas em aberto).
+    const items=typeof w.ayvoPendencias==='function'?w.ayvoPendencias():[];
     const p=d.createElement('div');p.className='popover notification-panel';p.id='commercialNotifications';
-    p.innerHTML=`<div class="popover-head"><b>Notificações</b><button type="button">Marcar como lidas</button></div>
-      <div class="notification-item critical"><i class="n-dot"></i><span><b>2 cobranças vencidas</b><small>Locações totalizam R$ 7.800 em atraso.</small></span></div>
-      <div class="notification-item"><i class="n-dot"></i><span><b>Contrato próximo do vencimento</b><small>Contêiner 07 vence em 18 dias.</small></span></div>
-      <div class="notification-item"><i class="n-dot"></i><span><b>Saldo de evento pendente</b><small>Festa Helena possui R$ 1.450 a receber.</small></span></div>
-      <div class="notification-item"><i class="n-dot"></i><span><b>Pico de ocupação previsto</b><small>Parque infantil: maior fluxo esperado às 18h.</small></span></div>
-      <div class="notification-foot">Central de alertas operacionais • dados demonstrativos</div>`;
+    p.innerHTML=`<div class="popover-head"><b>Pendências</b></div>
+      ${items.map(i=>`<button class="notification-item ${i.level==='bad'?'critical':''}" type="button" data-view="dashboard"><i class="n-dot"></i><span><b>${escapeHtml(i.title)}</b><small>${escapeHtml(i.detail)}</small></span></button>`).join('')}
+      <div class="notification-foot">${items.length?'Resolva cada item pela tela Início.':'Nada pendente. Tudo em dia.'}</div>`;
     d.body.appendChild(p);positionPopover(p,anchor,d);
-    p.querySelector('.popover-head button').onclick=()=>{qsa(p,'.notification-item').forEach(x=>x.style.opacity='.55');anchor.querySelector('.notification-dot')?.remove()};
+    qsa(p,'.notification-item').forEach(b=>b.onclick=()=>{p.remove();navigate(d,'dashboard')});
   }
 
   function toggleProfile(d,anchor,w){
     const existing=qs(d,'#commercialProfile'); if(existing){existing.remove();return}
     closeTransient(d);
     const p=d.createElement('div');p.className='popover profile-panel';p.id='commercialProfile';
-    p.innerHTML=`<div class="profile-summary"><b>Administrador</b><small>admin@complexofamilia.com.br</small></div>
-      <button class="profile-action" type="button">Minha conta</button><button class="profile-action" type="button">Preferências</button><button class="profile-action" type="button">Central de ajuda</button><button class="profile-action" type="button" data-exit>Sair do sistema</button>`;
+    p.innerHTML=`<div class="profile-summary"><b>Administrador</b><small>Acesso completo</small></div>
+      <button class="profile-action" type="button" data-exit>Sair do sistema</button>`;
     d.body.appendChild(p);positionPopover(p,anchor,d);p.querySelector('[data-exit]').onclick=()=>w.sair&&w.sair();
   }
 

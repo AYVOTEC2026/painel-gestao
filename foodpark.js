@@ -5,11 +5,43 @@
   if (!L) return;
 
   const KEY = 'ayvo.foodpark.v1';
+  const MODULES_KEY = 'ayvo.foodpark.modules';
+  const BRAND = { name: 'Pepama Food Park', logo: 'assets/pepama-logo.png', icon: 'assets/pepama-icon.png' };
+  // Telas principais do food park, na ordem do menu.
+  const MAIN_VIEWS = ['dashboard', 'pdv', 'locacoes', 'contabilidade', 'config'];
+  // Telas herdadas do complexo de lazer: só aparecem se ligadas em Configurações.
+  const EXTRA_VIEWS = [
+    ['parque', 'Parque infantil'],
+    ['bilheteria', 'Loja e bilheteria'],
+    ['quadras', 'Quadras'],
+    ['festas', 'Eventos e festas'],
+    ['crm', 'Clientes e campanhas']
+  ];
+  // Financeiro e Relatórios antigos foram absorvidos pela tela Financeiro (id contabilidade).
+  const RETIRED_VIEWS = ['financeiro', 'relatorios'];
   let state = load();
+  let modules = loadModules();
   let cart = [];
   let payMethod = 'pix';
   let stallId = '';
   let month = monthNow();
+
+  function loadModules() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(MODULES_KEY) || '{}');
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (err) {
+      return {};
+    }
+  }
+  function saveModules() {
+    try { localStorage.setItem(MODULES_KEY, JSON.stringify(modules)); } catch (err) { /* navegador sem armazenamento */ }
+  }
+  function viewEnabled(id) {
+    if (RETIRED_VIEWS.includes(id)) return false;
+    if (EXTRA_VIEWS.some(v => v[0] === id)) return !!modules[id];
+    return true;
+  }
 
   function load() {
     try {
@@ -44,6 +76,43 @@
     const stall = (state.stalls || []).find(s => s.id === id);
     return stall ? stall.name : 'Box';
   }
+  function methodLabel(id) {
+    const method = L.METHODS.find(m => m.id === id);
+    return method ? method.label : id;
+  }
+  function monthLabel(ym) {
+    return String(ym || '').split('-').reverse().join('/');
+  }
+  function shortDate(day) {
+    const parts = String(day || '').slice(0, 10).split('-');
+    return parts.length === 3 ? `${parts[2]}/${parts[1]}` : '';
+  }
+
+  // Tudo que pede uma ação do administrador. Alimenta o Início e o sino do topo.
+  function pendencias(includeCash) {
+    if (!state.onboarded) return [];
+    const out = [];
+    if (includeCash && !L.openSession(state)) {
+      out.push({ level: 'warn', title: 'Caixa fechado', detail: 'Abra o caixa para começar a vender.', act: 'open-cash', label: 'Abrir caixa' });
+    }
+    (state.charges || []).filter(c => c.status === 'aberto').forEach(c => out.push({
+      level: 'bad',
+      title: `Aluguel em aberto • ${stallName(c.stallId)}`,
+      detail: `${money(c.amount)} • mês ${monthLabel(c.competence)}`,
+      act: 'pay-rent',
+      id: c.id,
+      label: 'Marcar como recebido'
+    }));
+    (state.bills || []).filter(b => b.status === 'aberto').forEach(b => out.push({
+      level: 'warn',
+      title: `${b.direction === 'pagar' ? 'Conta a pagar' : 'Conta a receber'} • ${b.description}`,
+      detail: `${money(b.amount)}${b.due ? ' • vence ' + shortDate(b.due) : ''}`,
+      act: 'pay-bill',
+      id: b.id,
+      label: b.direction === 'pagar' ? 'Marcar como paga' : 'Marcar como recebida'
+    }));
+    return out;
+  }
 
   function addStyle(d) {
     if (d.getElementById('foodparkStyle')) return;
@@ -55,16 +124,16 @@
       .fp-pdv{display:grid;grid-template-columns:1.2fr .8fr;gap:13px;align-items:start}
       .fp-stalls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
       .fp-stalls button,.fp-pay button,.fp-tabs button{border:1px solid var(--line2);background:#fff;border-radius:10px;padding:8px 10px;font-size:11px;font-weight:750}
-      .fp-stalls button.active,.fp-pay button.active,.fp-tabs button.active{background:#fff3e5;border-color:#f0b56a;color:#9a4e06}
+      .fp-stalls button.active,.fp-pay button.active,.fp-tabs button.active{background:#f7ece5;border-color:#c9937a;color:#8a4426}
       .fp-pay{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-      .fp-quote{display:grid;gap:6px;margin:10px 0;padding:10px;border-radius:12px;background:#fffaf5;border:1px dashed #ffd8ad;font-size:11px}
+      .fp-quote{display:grid;gap:6px;margin:10px 0;padding:10px;border-radius:12px;background:#fffaf5;border:1px dashed #e8cbbb;font-size:11px}
       .fp-quote div{display:flex;justify-content:space-between;gap:10px}
       .fp-check{display:grid;gap:8px}
       .fp-check div{display:grid;grid-template-columns:22px 1fr auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
       .fp-check i{width:8px;height:8px;border-radius:50%;background:#d0d5db}
       .fp-check i.on{background:#2f8f5b}
       .fp-box{cursor:pointer;font:inherit;text-align:left;width:100%;color:inherit}
-      .fp-box:hover{border-color:#f0b56a}
+      .fp-box:hover{border-color:#c9937a}
       .fp-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
       .fp-panel{display:none}.fp-panel.active{display:block}
       .fp-terminal .fp-stalls button,.fp-terminal .product button,.fp-terminal .fp-pay button{min-height:46px}
@@ -74,29 +143,55 @@
       .product small{display:block;color:var(--muted);margin:4px 0 8px}
       .cart-line{display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);font-size:12px}
       .nav button[data-view="pdv"],.nav button[data-view="contabilidade"]{display:flex!important}
-      @media(max-width:900px){.fp-kpis,.fp-split,.fp-pdv,.product-grid{grid-template-columns:1fr}.fp-pay{grid-template-columns:1fr 1fr}}
+      html .nav button.fp-off,html .nav .fp-extra-label.fp-off,html .nav .nav-group-label:not(.fp-extra-label){display:none!important}
+      .unit-switcher{display:none!important}
+      .brand.fp-brand{padding:2px 4px 14px!important}
+      .fp-logo{display:block;width:100%;max-width:190px;aspect-ratio:300/244;object-fit:cover;border-radius:14px;box-shadow:0 6px 18px rgba(60,35,25,.14)}
+      .fp-logo-icon{display:none;width:46px;height:46px;border-radius:12px;margin:0 auto}
+      .fp-kpis.fp-kpis-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+      .fp-status{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 16px;margin-bottom:13px;border-radius:12px;background:#fff;border:1px solid var(--line);border-left:4px solid #b9a69a}
+      .fp-status.open{border-left-color:#2f8f5b}
+      .fp-status b{display:block;font-size:14px}.fp-status span{display:block;font-size:11px;color:var(--muted);margin-top:3px}
+      .fp-todo{display:grid;gap:8px}
+      .fp-todo-item{display:grid;grid-template-columns:8px minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px;border:1px solid var(--line);border-radius:10px}
+      .fp-todo-item i{width:8px;height:8px;border-radius:50%;background:#d9a441}.fp-todo-item.bad i{background:#b64848}
+      .fp-todo-item b{display:block;font-size:11.5px}.fp-todo-item small{display:block;color:var(--muted);font-size:10px;margin-top:2px}
+      .fp-empty{padding:16px;border-radius:10px;background:#f6faf7;border:1px solid #d9ebe0;color:#2f6f4b;font-size:11.5px}
+      .fp-step{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#f7ece5;color:#8a4426;font-size:10px;font-weight:800;margin-right:7px}
+      .fp-label{font-size:10.5px;color:var(--muted);font-weight:750;margin:12px 0 6px}
+      .fp-box small{display:block}
+      .fp-toolbar{align-items:center}.fp-toolbar .fp-month{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700}.fp-toolbar .fp-month input{flex:none;min-width:0;width:170px}
+      .fp-toolbar .fp-push{margin-left:auto}
+      .fp-quick{display:grid;grid-template-columns:1fr 1fr;gap:9px}.fp-quick .btn{min-height:52px;font-size:12px}
+      .fp-modules{display:grid;gap:8px;margin-top:10px}
+      .fp-modules label{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:12px;cursor:pointer}
+      .fp-modules input{width:18px;height:18px;accent-color:#a05433}
+      .notification-item{width:100%;border:0;background:transparent;text-align:left;cursor:pointer}.notification-item:hover{background:#fafafa}
+      .cart-line{align-items:center}
+      .fp-logo{max-width:160px;margin:0 auto}
+      @media(max-width:1180px){.fp-logo{display:none}.fp-logo-icon{display:block}}
+      @media(max-width:900px){.fp-kpis,.fp-kpis.fp-kpis-3,.fp-split,.fp-pdv,.product-grid{grid-template-columns:1fr}.fp-pay{grid-template-columns:1fr 1fr}.fp-status{flex-direction:column;align-items:stretch}.fp-toolbar .fp-push{margin-left:0;width:100%}}
     `;
     d.head.appendChild(st);
   }
 
   function titles() {
-    const name = state.park ? state.park.name : 'Food Park';
     return {
-      dashboard: [name, 'Vendas do PDV, boxes, repasse dos lojistas e resultado da administração.'],
-      pdv: ['PDV', 'Cada venda escolhe o box, baixa o estoque e gera o lançamento do contador.'],
-      locacoes: ['Boxes e lojistas', 'Contrato, aluguel, taxa sobre o faturamento e cardápio de cada operação.'],
-      contabilidade: ['Contabilidade', 'DRE da administração, livro de lançamentos, contas e arquivo para o contador.'],
-      financeiro: ['Financeiro', 'Caixa, recebíveis e resultado apurados a partir do PDV.'],
-      parque: ['Área de lazer', 'Módulo opcional, se o food park também tiver espaço infantil.'],
-      quadras: ['Quadras', 'Módulo opcional de reservas.'],
-      festas: ['Eventos', 'Módulo opcional de festas e locação de espaço.'],
-      crm: ['Clientes', 'Quem consumiu no PDV e o relacionamento da casa.'],
-      relatorios: ['Relatórios', 'A exportação oficial para o contador fica na Contabilidade.'],
-      config: ['Administração', 'Dados do food park, taxas e recomeço da implantação.']
+      dashboard: ['Início', 'O que precisa da sua atenção hoje.'],
+      pdv: ['PDV', 'Escolha o box, adicione os itens e finalize a venda.'],
+      locacoes: ['Boxes e lojistas', 'Quem ocupa cada box, quanto paga de aluguel e o cardápio.'],
+      contabilidade: ['Financeiro', 'Resultado do mês, acerto com os lojistas, contas e arquivos para o contador.'],
+      parque: ['Parque infantil', 'Módulo extra • dados de exemplo.'],
+      bilheteria: ['Loja e bilheteria', 'Módulo extra • dados de exemplo.'],
+      quadras: ['Quadras', 'Módulo extra • dados de exemplo.'],
+      festas: ['Eventos e festas', 'Módulo extra • dados de exemplo.'],
+      crm: ['Clientes e campanhas', 'Módulo extra • dados de exemplo.'],
+      config: ['Configurações', 'Dados do food park, taxas e módulos extras.']
     };
   }
 
   function activate(d, w, id) {
+    if (!viewEnabled(id)) id = 'dashboard';
     const btn = d.querySelector(`.nav button[data-view="${id}"]`);
     d.querySelectorAll('.nav button').forEach(b => b.classList.toggle('active', b === btn));
     d.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === id));
@@ -123,13 +218,31 @@
       btn.addEventListener('click', () => activate(d, w, id));
     };
     add('pdv', 'PDV', '<path d="M4 7h16v10H4z"/><path d="M8 17v2M16 17v2M7 11h4"/>', 'locacoes');
-    add('contabilidade', 'Contabilidade', '<path d="M6 4h9l3 3v13H6z"/><path d="M9 12h6M9 16h6"/>', 'financeiro');
-    const labels = { locacoes: 'Boxes', financeiro: 'Financeiro', pdv: 'PDV', contabilidade: 'Contabilidade' };
+    add('contabilidade', 'Financeiro', '<path d="M4 19h16M6 16V8M10 16V8M14 16V8M18 16V8M3 8l9-4 9 4z"/>', 'financeiro');
+    const labels = { dashboard: 'Início', pdv: 'PDV', locacoes: 'Boxes', contabilidade: 'Financeiro', config: 'Configurações' };
+    EXTRA_VIEWS.forEach(([id, label]) => { labels[id] = label; });
     nav.querySelectorAll('button[data-view]').forEach(btn => {
       const span = btn.querySelector('span');
       if (span && labels[btn.dataset.view]) span.textContent = labels[btn.dataset.view];
     });
-    if (w.meta) Object.assign(w.meta, titles());
+
+    let extraLabel = nav.querySelector('.fp-extra-label');
+    if (!extraLabel) {
+      extraLabel = d.createElement('div');
+      extraLabel.className = 'nav-group-label fp-extra-label';
+      extraLabel.textContent = 'Módulos extras';
+    }
+    const order = [...MAIN_VIEWS, null, ...EXTRA_VIEWS.map(v => v[0]), ...RETIRED_VIEWS];
+    order.forEach(id => {
+      const node = id === null ? extraLabel : nav.querySelector(`[data-view="${id}"]`);
+      if (node) nav.appendChild(node);
+    });
+    nav.querySelectorAll('button[data-view]').forEach(btn => btn.classList.toggle('fp-off', !viewEnabled(btn.dataset.view)));
+    extraLabel.classList.toggle('fp-off', !EXTRA_VIEWS.some(v => modules[v[0]]));
+    const current = d.querySelector('.nav button.active');
+    if (current && !viewEnabled(current.dataset.view)) activate(d, w, 'dashboard');
+    // O `meta` do original.html é const e não fica em window; o nav-hotfix do celular lê w.meta.
+    w.meta = Object.assign(w.meta || {}, titles());
   }
 
   function ensureViews(d) {
@@ -151,31 +264,22 @@
     }
   }
 
+  // Marca e nomes do app. Os textos do login ficam em orange-white-theme.js.
   function brand(d) {
-    const name = state.onboarded && state.park ? state.park.name : 'AYVO Food Park';
-    const city = state.onboarded && state.park && state.park.city ? state.park.city : 'Nova unidade';
-    d.querySelectorAll('.brand b').forEach(el => { el.textContent = 'AYVO Food Park'; });
-    const small = d.querySelector('.brand small');
-    if (small) small.textContent = name;
+    const name = state.onboarded && state.park ? state.park.name : BRAND.name;
+    const city = state.onboarded && state.park ? state.park.city : '';
+    const side = d.querySelector('aside .brand');
+    if (side && !side.classList.contains('fp-brand')) {
+      side.classList.add('fp-brand');
+      side.innerHTML = `<img class="fp-logo" src="${BRAND.logo}" alt="${esc(BRAND.name)}"><img class="fp-logo-icon" src="${BRAND.icon}" alt="">`;
+    }
     const cards = d.querySelectorAll('.side-card');
     if (cards[0]) cards[0].innerHTML = `<small>Unidade</small><b>${esc(name)}</b>`;
-    if (cards[1]) cards[1].innerHTML = '<small>Implantação</small><b style="color:#78dfa7">● Pronta para operar</b>';
-    const unit = d.querySelector('[data-unit] span');
-    if (unit) unit.textContent = name + ' • ' + city;
-    const ey = d.querySelector('.login-copy .ey');
-    if (ey) ey.textContent = 'FOOD PARK • COMEÇA DO ZERO';
-    const h1 = d.querySelector('.login-copy h1');
-    if (h1) h1.textContent = 'O PDV, o repasse dos lojistas e o contador no mesmo sistema.';
-    const p = d.querySelector('.login-copy p');
-    if (p) p.textContent = 'Cada box vende no próprio caixa. A administração acompanha aluguel, taxa sobre o faturamento e o resultado, e exporta o mês para a contabilidade.';
-    const points = d.querySelectorAll('.login-point');
-    if (points[0]) points[0].innerHTML = '<b>PDV por box</b><small>Cardápio, pagamento, estoque e comanda.</small>';
-    if (points[1]) points[1].innerHTML = '<b>Repasse</b><small>O que é do lojista e o que é do food park.</small>';
-    if (points[2]) points[2].innerHTML = '<b>Contador</b><small>DRE, livro caixa e CSV do período.</small>';
-    const note = d.querySelector('.demo-note');
-    if (note) note.innerHTML = '<b>Unidade nova.</b> Depois de entrar, crie o food park vazio ou carregue a demonstração para a proprietária.';
-    const boxTitle = d.querySelector('.login-box h2');
-    if (boxTitle) boxTitle.textContent = 'Entrar na operação';
+    if (cards[1]) cards[1].innerHTML = '<small>Tecnologia</small><b>AYVO</b>';
+    const ey = d.querySelector('.topbar .ey');
+    if (ey) ey.textContent = city ? `${name} • ${city}` : name;
+    d.title = BRAND.name;
+    document.title = BRAND.name;
     const email = d.getElementById('loginEmail');
     if (email && /complexofamilia/i.test(email.value)) email.value = 'admin@foodpark.com.br';
   }
@@ -197,22 +301,31 @@
     const sec = d.getElementById('dashboard');
     if (!sec || !state.onboarded) return;
     const view = L.dashboard(state, nowIso());
+    const session = L.openSession(state);
     const steps = checklist();
     const done = steps.filter(s => s[0]).length;
-    const recent = (state.sales || []).filter(s => s.status === 'paga').slice(0, 6);
+    const todo = pendencias(false);
+    const recent = (state.sales || []).filter(s => s.status === 'paga').slice(0, 5);
+    const setup = done < steps.length
+      ? `<div class="card" style="margin-bottom:13px"><div class="head"><h2>Primeiros passos</h2><span>${done} de ${steps.length} feitos</span></div><div class="fp-check">${steps.map(step => `<div><i class="${step[0] ? 'on' : ''}"></i><span>${step[1]}</span><b>${step[0] ? 'feito' : 'falta'}</b></div>`).join('')}</div><div class="actions-row"><button class="btn" data-act="go" data-go="locacoes">Cadastrar lojista</button><button class="btn primary" data-act="go" data-go="pdv">Ir para o PDV</button></div></div>`
+      : '';
     sec.innerHTML = `
-      <div class="park-hero"><div><span class="ops-chip">${esc(state.mode === 'demo' ? 'Demonstração para a proprietária' : 'Unidade em implantação')}</span><h2 style="margin-top:9px">${esc(state.park.name)}</h2><p>${esc(state.park.city || 'Cidade ainda não informada')} • ${esc(state.park.cnpj || 'CNPJ a cadastrar')} • taxa padrão de administração ${esc(state.park.adminFeePercent)}% sobre o faturamento de cada box.</p></div><div class="rule">${view.cashOpen ? 'CAIXA ABERTO' : 'CAIXA FECHADO'}<small>${view.occupied} de ${view.boxes} boxes ocupados</small></div></div>
-      <div class="fp-kpis">
-        <div class="card stat"><small>Faturamento de hoje</small><strong>${money(view.todayGross)}</strong><em>${view.todayTickets} vendas no PDV</em></div>
-        <div class="card stat"><small>Taxa da administração hoje</small><strong>${money(view.todayAdmin)}</strong><em>Já lançada na receita</em></div>
-        <div class="card stat"><small>Faturamento do mês</small><strong>${money(view.monthGross)}</strong><em>Ticket médio hoje ${money(view.averageTicket)}</em></div>
-        <div class="card stat"><small>Resultado do food park</small><strong>${money(view.monthResult)}</strong><em>Aluguel + taxa − despesas</em></div>
+      <div class="fp-status ${view.cashOpen ? 'open' : ''}">
+        <div><b>${view.cashOpen ? 'Caixa aberto' : 'Caixa fechado'}</b><span>${view.cashOpen ? `Aberto às ${esc(String(session.openedAt).slice(11, 16))} • ${view.todayTickets} vendas hoje` : 'Abra o caixa para começar a vender.'}</span></div>
+        ${view.cashOpen ? '<button class="btn primary" data-act="go" data-go="pdv">Ir para o PDV</button>' : '<button class="btn primary" data-act="open-cash">Abrir caixa</button>'}
       </div>
-      <div class="fp-split" style="margin-top:13px">
-        <div class="card"><div class="head"><h2>Começar a operação</h2><span>${done}/5</span></div><div class="fp-check">${steps.map(step => `<div><i class="${step[0] ? 'on' : ''}"></i><span>${step[1]}</span><b>${step[0] ? 'feito' : 'pendente'}</b></div>`).join('')}</div><div class="actions-row"><button class="btn primary" data-act="go" data-go="pdv">Abrir PDV</button><button class="btn" data-act="go" data-go="locacoes">Cadastrar box</button></div></div>
-        <div class="card"><div class="head"><h2>Para o contador neste mês</h2><span>${esc(monthNow())}</span></div><div class="metric"><span>Aluguéis em aberto</span><b>${money(view.pendingRent)}</b></div><div class="metric"><span>Contas a pagar em aberto</span><b>${money(view.pendingPay)}</b></div><div class="metric"><span>Boxes ocupados</span><b>${view.occupied}/${view.boxes}</b></div><button class="btn soft full" data-act="go" data-go="contabilidade" style="margin-top:10px">Abrir contabilidade</button></div>
+      <div class="fp-kpis fp-kpis-3">
+        <div class="card stat"><small>Vendas de hoje</small><strong>${money(view.todayGross)}</strong><em>${view.todayTickets} pedidos • média ${money(view.averageTicket)}</em></div>
+        <div class="card stat"><small>Ganho do food park hoje</small><strong>${money(view.todayAdmin)}</strong><em>Taxa sobre as vendas dos boxes</em></div>
+        <div class="card stat"><small>Resultado do mês</small><strong>${money(view.monthResult)}</strong><em>Aluguéis + taxas − despesas</em></div>
       </div>
-      <div class="card" style="margin-top:13px"><div class="head"><h2>Últimas vendas do PDV</h2><span>Lançadas no financeiro</span></div>${recent.length ? `<div class="table-wrap"><table><thead><tr><th>Pedido</th><th>Box</th><th>Pagamento</th><th>Total</th><th>Taxa do parque</th><th>Líquido do lojista</th></tr></thead><tbody>${recent.map(sale => `<tr><td>${L.pad(sale.number, 4)}</td><td>${esc(stallName(sale.stallId))}</td><td>${esc(sale.method)}</td><td>${money(sale.total)}</td><td>${money(sale.adminFee)}</td><td>${money(sale.netStall)}</td></tr>`).join('')}</tbody></table></div>` : '<div class="note">Nenhuma venda ainda. Abra o caixa e registre o primeiro pedido no PDV.</div>'}</div>`;
+      <div style="margin-top:13px">${setup}</div>
+      <div class="fp-split">
+        <div class="card"><div class="head"><h2>Pendências</h2><span>${todo.length ? todo.length + (todo.length === 1 ? ' item' : ' itens') : ''}</span></div>${todo.length
+          ? `<div class="fp-todo">${todo.map(t => `<div class="fp-todo-item ${t.level}"><i></i><span><b>${esc(t.title)}</b><small>${esc(t.detail)}</small></span><button class="btn" data-act="${t.act}" data-id="${esc(t.id || '')}">${esc(t.label)}</button></div>`).join('')}</div>`
+          : '<div class="fp-empty">Nada pendente. Aluguéis e contas estão em dia.</div>'}<span id="dashKids" hidden></span></div>
+        <div class="card"><div class="head"><h2>Últimas vendas</h2><button class="btn" data-act="go" data-go="pdv">Ver no PDV</button></div>${recent.length ? `<div class="table-wrap"><table><thead><tr><th>Pedido</th><th>Box</th><th>Pagamento</th><th>Total</th></tr></thead><tbody>${recent.map(sale => `<tr><td>${L.pad(sale.number, 4)}</td><td>${esc(stallName(sale.stallId))}</td><td>${esc(methodLabel(sale.method))}</td><td>${money(sale.total)}</td></tr>`).join('')}</tbody></table></div>` : '<div class="note">Nenhuma venda ainda. Abra o caixa e registre o primeiro pedido no PDV.</div>'}</div>
+      </div>`;
   }
 
   function renderBoxes(d) {
@@ -233,9 +346,9 @@
     }
     const occupied = Object.keys(byBox).length;
     sec.innerHTML = `
-      <div class="toolbar"><button class="btn primary" data-act="new-stall">Novo lojista</button><span class="fp-note">${occupied} operações ativas de ${boxes} boxes. O aluguel entra na receita da administração; a taxa incide em cada venda do PDV.</span></div>
-      <div class="card"><div class="head"><h2>Mapa dos boxes</h2><span>Clique para cadastrar ou abrir o cardápio</span></div><div class="map">${cards.join('')}</div></div>
-      <div class="card" style="margin-top:13px"><div class="head"><h2>Contratos</h2><span>Base do repasse</span></div><div class="table-wrap"><table><thead><tr><th>Box</th><th>Operação</th><th>Responsável</th><th>Aluguel</th><th>Taxa</th><th>Itens</th></tr></thead><tbody>
+      <div class="toolbar fp-toolbar"><button class="btn primary" data-act="new-stall">Novo lojista</button><span class="fp-note">${occupied} de ${boxes} boxes ocupados.</span></div>
+      <div class="card"><div class="head"><h2>Mapa dos boxes</h2><span>Clique num box para ver o cardápio ou cadastrar um lojista</span></div><div class="map">${cards.join('')}</div></div>
+      <div class="card" style="margin-top:13px"><div class="head"><h2>Lojistas</h2></div><div class="table-wrap"><table><thead><tr><th>Box</th><th>Operação</th><th>Responsável</th><th>Aluguel</th><th>Taxa sobre vendas</th><th></th></tr></thead><tbody>
         ${(state.stalls.filter(s => s.status === 'ativo').map(s => `<tr><td>${L.pad(s.box, 2)}</td><td>${esc(s.name)}</td><td>${esc(s.owner || '—')}</td><td>${money(s.rent)}</td><td>${esc(s.feePercent)}%</td><td><button class="btn" data-act="menu" data-stall="${s.id}">Cardápio</button></td></tr>`).join('')) || '<tr><td colspan="6">Nenhum lojista ainda.</td></tr>'}
       </tbody></table></div></div>`;
   }
@@ -250,27 +363,29 @@
     sec.innerHTML = `
       <div class="fp-pdv">
         <div class="card">
-          <div class="head"><h2>Cardápio do box</h2><span>${session ? 'Caixa aberto' : 'Caixa fechado'}</span></div>
+          <div class="head"><h2><span class="fp-step">1</span>Escolha o box e os itens</h2><span>${session ? 'Caixa aberto' : 'Caixa fechado'}</span></div>
           <div class="fp-stalls">${stalls.map(s => `<button type="button" data-act="pick-stall" data-stall="${s.id}" class="${s.id === stallId ? 'active' : ''}">${L.pad(s.box, 2)} • ${esc(s.name)}</button>`).join('') || '<div class="note">Cadastre um lojista e o cardápio antes de vender.</div>'}</div>
-          <div class="product-grid">${stall ? stall.products.filter(p => p.active !== false).map(p => `<div class="product"><b>${esc(p.name)}</b><small>${esc(p.category)}${p.stock == null ? '' : ' • estoque ' + p.stock}</small><strong>${money(p.price)}</strong><button class="btn soft full" data-act="add" data-product="${p.id}" style="margin-top:9px">Adicionar</button></div>`).join('') : ''}</div>
+          <div class="product-grid">${stall ? stall.products.filter(p => p.active !== false).map(p => `<div class="product"><b>${esc(p.name)}</b><small>${p.stock == null ? '&nbsp;' : 'Estoque: ' + p.stock}</small><strong>${money(p.price)}</strong><button class="btn soft full" data-act="add" data-product="${p.id}" style="margin-top:9px">Adicionar</button></div>`).join('') : ''}</div>
         </div>
         <div class="card" id="fpCartCard">
-          <div class="head"><h2>Pedido</h2><button class="btn" data-act="clear-cart">Limpar</button></div>
-          <div class="fp-note" style="margin-bottom:8px">${session ? 'Fundo de troco ' + money(session.openingFloat) + ' • aberto às ' + esc(String(session.openedAt).slice(11, 16)) : 'Abra o caixa para a venda entrar na contabilidade.'}</div>
+          <div class="head"><h2><span class="fp-step">2</span>Pedido</h2><button class="btn" data-act="clear-cart">Limpar</button></div>
+          <div class="fp-note" style="margin-bottom:8px">${session ? 'Caixa aberto às ' + esc(String(session.openedAt).slice(11, 16)) + ' com ' + money(session.openingFloat) + ' de troco' : 'Abra o caixa antes de vender.'}</div>
           <div class="actions-row" style="justify-content:flex-start;margin-top:0">
-            ${session ? '<button class="btn" data-act="move">Sangria / suprimento</button><button class="btn" data-act="close-cash">Fechar caixa</button>' : '<button class="btn primary" data-act="open-cash">Abrir caixa</button>'}
+            ${session ? '<button class="btn" data-act="move">Tirar ou colocar dinheiro</button><button class="btn" data-act="close-cash">Fechar caixa</button>' : '<button class="btn primary" data-act="open-cash">Abrir caixa</button>'}
           </div>
-          <div class="field"><label>Cliente</label><input id="fpCustomer" placeholder="Opcional"></div>
-          <div class="field"><label>Mesa ou comanda</label><input id="fpTable" placeholder="Ex.: 12"></div>
-          <div id="fpCartLines"></div>
-          <div class="field"><label>Desconto</label><input id="fpDiscount" type="number" min="0" step="0.01" value="0"></div>
+          <div id="fpCartLines" style="margin-top:12px"></div>
+          <div class="form-grid" style="margin-top:12px">
+            <div class="field"><label>Mesa ou comanda</label><input id="fpTable" placeholder="Opcional"></div>
+            <div class="field"><label>Desconto (R$)</label><input id="fpDiscount" type="number" min="0" step="0.01" value="0"></div>
+            <div class="field full"><label>Nome do cliente</label><input id="fpCustomer" placeholder="Opcional"></div>
+          </div>
+          <div class="fp-label"><span class="fp-step">3</span>Forma de pagamento</div>
           <div class="fp-pay" id="fpPay">${L.METHODS.map(m => `<button type="button" data-act="pay" data-method="${m.id}" class="${m.id === payMethod ? 'active' : ''}">${m.label}</button>`).join('')}</div>
-          <div id="fpQuote"></div>
+          <div id="fpQuote" class="fp-quote"></div>
           <button class="btn primary full" data-act="finish">Finalizar venda</button>
-          <p class="fp-note">Dinheiro fica com o lojista e gera taxa a receber. Pix, cartão e voucher ficam com a administração, já descontada a taxa do parque e a taxa da maquineta.</p>
         </div>
       </div>
-      <div class="card" style="margin-top:13px"><div class="head"><h2>Vendas desta sessão</h2><span>Cancelamento estorna o lançamento</span></div><div id="fpSessionSales"></div></div>`;
+      <div class="card" style="margin-top:13px"><div class="head"><h2>Vendas deste caixa</h2><span>Cancelar uma venda desfaz o lançamento</span></div><div id="fpSessionSales"></div></div>`;
     renderCart(d);
     renderSessionSales(d);
   }
@@ -292,7 +407,7 @@
         });
       }
     } catch (err) { error = err.message; }
-    quoteBox.innerHTML = error ? `<div class="note">${esc(error)}</div>` : quote ? `<div><span>Total do cliente</span><b>${money(quote.total)}</b></div><div><span>Taxa da maquineta</span><b>${money(quote.cardFee)}</b></div><div><span>Taxa do food park (${esc(quote.adminPercent)}%)</span><b>${money(quote.adminFee)}</b></div><div><span>Líquido do lojista</span><b>${money(quote.netStall)}</b></div><div><span>Quem recebe o pagamento</span><b>${quote.holder === 'lojista' ? 'Lojista' : 'Administração'}</b></div>` : '<div class="fp-note">A divisão da venda aparece aqui antes de confirmar.</div>';
+    quoteBox.innerHTML = error ? `<div class="note">${esc(error)}</div>` : quote ? `<div><span>Total do cliente</span><b>${money(quote.total)}</b></div><div><span>Taxa da maquininha</span><b>${money(quote.cardFee)}</b></div><div><span>Taxa do food park (${esc(quote.adminPercent)}%)</span><b>${money(quote.adminFee)}</b></div><div><span>Fica para o lojista</span><b>${money(quote.netStall)}</b></div><div><span>Quem recebe o dinheiro</span><b>${quote.holder === 'lojista' ? 'Lojista' : 'Food park'}</b></div>` : '<div class="fp-note">Adicione itens para ver quanto fica para o lojista e para o food park.</div>';
   }
 
   function renderSessionSales(d) {
@@ -310,58 +425,78 @@
     const rows = L.settlement(state, month);
     const charges = state.charges.filter(c => c.competence === month);
     const book = state.ledger.filter(line => L.ymOf(line.at) === month).slice(-25).reverse();
+    const today = L.expectedByMethod((state.sales || []).filter(s => s.status === 'paga' && L.dayOf(s.at) === L.dayOf(nowIso())));
+    const todayTotal = L.METHODS.reduce((acc, m) => acc + (Number(today[m.id]) || 0), 0);
+    const tabs = [['dre', 'Resultado do mês'], ['repasse', 'Acerto com lojistas'], ['contas', 'Contas e aluguéis'], ['caixa', 'Caixa de hoje'], ['livro', 'Lançamentos']];
     sec.innerHTML = `
-      <div class="toolbar"><label class="fp-note">Competência</label><input id="fpMonth" type="month" value="${esc(month)}"><button class="btn" data-act="export" data-file="vendas">CSV de vendas</button><button class="btn" data-act="export" data-file="lancamentos">CSV de lançamentos</button><button class="btn" data-act="export" data-file="dre">CSV da DRE</button><button class="btn" data-act="export" data-file="repasses">CSV de repasses</button></div>
+      <div class="toolbar fp-toolbar"><label class="fp-month"><span>Mês</span><input id="fpMonth" type="month" value="${esc(month)}"></label><span class="fp-note fp-push">Arquivos para o contador (CSV):</span><button class="btn" data-act="export" data-file="vendas">Vendas</button><button class="btn" data-act="export" data-file="lancamentos">Lançamentos</button><button class="btn" data-act="export" data-file="dre">Resultado</button><button class="btn" data-act="export" data-file="repasses">Acertos</button></div>
       <div class="fp-kpis">
-        <div class="card stat"><small>Faturamento dos boxes</small><strong>${money(report.grossSales)}</strong><em>${report.tickets} pedidos • não é receita do parque</em></div>
-        <div class="card stat"><small>Receita da administração</small><strong>${money(report.revenue)}</strong><em>Aluguel, taxa e outras</em></div>
-        <div class="card stat"><small>Despesas</small><strong>${money(report.expense)}</strong><em>Competência do mês</em></div>
-        <div class="card stat"><small>Resultado</small><strong>${money(report.result)}</strong><em>Taxa de cartão fica com o lojista: ${money(report.cardFeesOnStalls)}</em></div>
+        <div class="card stat"><small>Vendas dos boxes</small><strong>${money(report.grossSales)}</strong><em>${report.tickets} pedidos • dinheiro dos lojistas</em></div>
+        <div class="card stat"><small>Receita do food park</small><strong>${money(report.revenue)}</strong><em>Aluguéis + taxas</em></div>
+        <div class="card stat"><small>Despesas</small><strong>${money(report.expense)}</strong><em>Contas do mês</em></div>
+        <div class="card stat"><small>Resultado do mês</small><strong>${money(report.result)}</strong><em>Receita − despesas</em></div>
       </div>
-      <div class="fp-tabs" style="margin-top:13px"><button type="button" class="active" data-act="tab" data-tab="dre">DRE</button><button type="button" data-act="tab" data-tab="repasse">Repasse</button><button type="button" data-act="tab" data-tab="contas">Contas</button><button type="button" data-act="tab" data-tab="livro">Livro</button></div>
-      <div class="fp-panel active" data-panel="dre"><div class="card"><div class="head"><h2>Resultado da administração</h2><span>O faturamento do box não entra como receita do food park</span></div><div class="table-wrap"><table><thead><tr><th>Conta</th><th>Natureza</th><th>Valor</th></tr></thead><tbody>${report.lines.map(line => `<tr><td>${esc(line.label)}</td><td>${line.nature === 'receita' ? 'Receita' : 'Despesa'}</td><td>${money(line.amount)}</td></tr>`).join('')}<tr><td><b>Resultado</b></td><td></td><td><b>${money(report.result)}</b></td></tr></tbody></table></div></div></div>
-      <div class="fp-panel" data-panel="repasse"><div class="card"><div class="head"><h2>Repasse do mês</h2><span>Compensa líquido do cartão/Pix, taxa do dinheiro e aluguel</span></div><div class="table-wrap"><table><thead><tr><th>Box</th><th>Faturamento</th><th>Taxa cartão</th><th>Taxa parque</th><th>Aluguel aberto</th><th>Acerto</th><th></th></tr></thead><tbody>${rows.map(row => `<tr><td>${L.pad(row.box, 2)} • ${esc(row.name)}</td><td>${money(row.gross)}</td><td>${money(row.cardFee)}</td><td>${money(row.adminFee)}</td><td>${money(row.rentOpen)}</td><td>${row.direction === 'zerado' ? 'Acertado' : (row.direction === 'pagar_lojista' ? 'Pagar ao lojista ' : 'Receber do lojista ') + money(row.amount)}</td><td>${row.direction === 'zerado' ? '' : `<button class="btn primary" data-act="settle" data-stall="${row.stallId}">Lançar</button>`}</td></tr>`).join('') || '<tr><td colspan="7">Sem lojistas.</td></tr>'}</tbody></table></div><p class="fp-note">Pix, débito, crédito e voucher: a administração recebeu e deve o líquido. Dinheiro: o lojista recebeu e deve a taxa. O botão compensa as duas coisas e baixa o aluguel em aberto do mês.</p></div></div>
-      <div class="fp-panel" data-panel="contas"><div class="grid cols2"><div class="card"><div class="head"><h2>Aluguéis</h2><span>${esc(month)}</span></div><div class="table-wrap"><table><thead><tr><th>Box</th><th>Valor</th><th>Status</th><th></th></tr></thead><tbody>${charges.map(c => `<tr><td>${esc(stallName(c.stallId))}</td><td>${money(c.amount)}</td><td>${c.status === 'pago' ? '<span class="status ok">Recebido</span>' : '<span class="status warn">Aberto</span>'}</td><td>${c.status === 'aberto' ? `<button class="btn" data-act="pay-rent" data-id="${c.id}">Receber</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="4">Sem aluguel nesta competência.</td></tr>'}</tbody></table></div></div>
-      <div class="card"><div class="head"><h2>Contas a pagar e receber</h2><button class="btn primary" data-act="new-bill">Nova conta</button></div><div class="table-wrap"><table><thead><tr><th>Descrição</th><th>Valor</th><th>Status</th><th></th></tr></thead><tbody>${state.bills.map(b => `<tr><td>${esc(b.description)}</td><td>${money(b.amount)}</td><td>${b.status === 'pago' ? '<span class="status ok">Baixada</span>' : '<span class="status warn">Aberta</span>'}</td><td>${b.status === 'aberto' ? `<button class="btn" data-act="pay-bill" data-id="${b.id}">${b.direction === 'pagar' ? 'Pagar' : 'Receber'}</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="4">Nenhuma conta lançada.</td></tr>'}</tbody></table></div></div></div></div>
-      <div class="fp-panel" data-panel="livro"><div class="card"><div class="head"><h2>Últimos lançamentos da competência</h2><span>${book.length} na tela</span></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Conta</th><th>Histórico</th><th>Débito</th><th>Crédito</th></tr></thead><tbody>${book.map(line => `<tr><td>${esc(String(line.at).slice(0, 16).replace('T', ' '))}</td><td>${esc(L.ACCOUNT_LABELS[line.account] || line.account)}</td><td>${esc(line.memo)}</td><td>${line.debit ? money(line.debit) : ''}</td><td>${line.credit ? money(line.credit) : ''}</td></tr>`).join('') || '<tr><td colspan="5">Sem lançamentos.</td></tr>'}</tbody></table></div><p class="fp-note">Partidas dobradas. O arquivo CSV leva o mês inteiro para o escritório, com vendas, lançamentos, DRE e repasses separados.</p></div></div>`;
+      <div class="fp-tabs" style="margin-top:13px">${tabs.map(t => `<button type="button" data-act="tab" data-tab="${t[0]}">${t[1]}</button>`).join('')}</div>
+      <div class="fp-panel" data-panel="dre"><div class="card"><div class="head"><h2>Resultado do mês</h2><span>As vendas dos boxes não contam como receita do food park, só a taxa e o aluguel</span></div><div class="table-wrap"><table><thead><tr><th>Conta</th><th>Tipo</th><th>Valor</th></tr></thead><tbody>${report.lines.filter(line => Number(line.amount)).map(line => `<tr><td>${esc(line.label)}</td><td>${line.nature === 'receita' ? 'Entrada' : 'Saída'}</td><td>${money(line.amount)}</td></tr>`).join('') || '<tr><td colspan="3">Nada lançado neste mês.</td></tr>'}<tr><td><b>Resultado</b></td><td></td><td><b>${money(report.result)}</b></td></tr></tbody></table></div></div></div>
+      <div class="fp-panel" data-panel="repasse"><div class="card"><div class="head"><h2>Acerto com lojistas</h2><span>${esc(monthLabel(month))}</span></div><div class="table-wrap"><table><thead><tr><th>Box</th><th>Vendas</th><th>Taxa da maquininha</th><th>Taxa do food park</th><th>Aluguel em aberto</th><th>Acerto</th><th></th></tr></thead><tbody>${rows.map(row => `<tr><td>${L.pad(row.box, 2)} • ${esc(row.name)}</td><td>${money(row.gross)}</td><td>${money(row.cardFee)}</td><td>${money(row.adminFee)}</td><td>${money(row.rentOpen)}</td><td>${row.direction === 'zerado' ? 'Acertado' : (row.direction === 'pagar_lojista' ? 'Pagar ao lojista ' : 'Receber do lojista ') + money(row.amount)}</td><td>${row.direction === 'zerado' ? '' : `<button class="btn primary" data-act="settle" data-stall="${row.stallId}">Registrar acerto</button>`}</td></tr>`).join('') || '<tr><td colspan="7">Sem lojistas.</td></tr>'}</tbody></table></div><p class="fp-note">Pix, cartão e voucher caem na conta do food park, que repassa ao lojista o que é dele. No dinheiro é o contrário: o lojista recebe e deve a taxa. "Registrar acerto" fecha essa conta e o aluguel em aberto do mês.</p></div></div>
+      <div class="fp-panel" data-panel="contas"><div class="grid cols2"><div class="card"><div class="head"><h2>Aluguéis do mês</h2><span>${esc(monthLabel(month))}</span></div><div class="table-wrap"><table><thead><tr><th>Box</th><th>Valor</th><th>Situação</th><th></th></tr></thead><tbody>${charges.map(c => `<tr><td>${esc(stallName(c.stallId))}</td><td>${money(c.amount)}</td><td>${c.status === 'pago' ? '<span class="status ok">Recebido</span>' : '<span class="status warn">Em aberto</span>'}</td><td>${c.status === 'aberto' ? `<button class="btn" data-act="pay-rent" data-id="${c.id}">Marcar como recebido</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="4">Nenhum aluguel neste mês.</td></tr>'}</tbody></table></div></div>
+      <div class="card"><div class="head"><h2>Contas a pagar e receber</h2><button class="btn primary" data-act="new-bill">Nova conta</button></div><div class="table-wrap"><table><thead><tr><th>Descrição</th><th>Valor</th><th>Situação</th><th></th></tr></thead><tbody>${state.bills.map(b => `<tr><td>${esc(b.description)}</td><td>${money(b.amount)}</td><td>${b.status === 'pago' ? '<span class="status ok">Quitada</span>' : '<span class="status warn">Em aberto</span>'}</td><td>${b.status === 'aberto' ? `<button class="btn" data-act="pay-bill" data-id="${b.id}">${b.direction === 'pagar' ? 'Marcar como paga' : 'Marcar como recebida'}</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="4">Nenhuma conta lançada.</td></tr>'}</tbody></table></div></div></div></div>
+      <div class="fp-panel" data-panel="caixa"><div class="card"><div class="head"><h2>Vendas de hoje por forma de pagamento</h2><span>Para conferir o caixa</span></div>${L.METHODS.map(m => `<div class="metric"><span>${m.label}${m.holder === 'lojista' ? ' • fica com o lojista' : ''}</span><b>${money(today[m.id] || 0)}</b></div>`).join('')}<div class="metric"><span><b>Total</b></span><b>${money(todayTotal)}</b></div></div></div>
+      <div class="fp-panel" data-panel="livro"><div class="card"><div class="head"><h2>Lançamentos do mês</h2><span>Os ${book.length} mais recentes</span></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Conta</th><th>Descrição</th><th>Débito</th><th>Crédito</th></tr></thead><tbody>${book.map(line => `<tr><td>${esc(String(line.at).slice(0, 16).replace('T', ' '))}</td><td>${esc(L.ACCOUNT_LABELS[line.account] || line.account)}</td><td>${esc(line.memo)}</td><td>${line.debit ? money(line.debit) : ''}</td><td>${line.credit ? money(line.credit) : ''}</td></tr>`).join('') || '<tr><td colspan="5">Sem lançamentos.</td></tr>'}</tbody></table></div><p class="fp-note">Visão do contador, em partidas dobradas. O mês completo está nos arquivos CSV no topo da tela.</p></div></div>`;
     const active = sec.dataset.tab || 'dre';
     sec.querySelectorAll('[data-act="tab"]').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === active));
     sec.querySelectorAll('[data-panel]').forEach(panel => panel.classList.toggle('active', panel.dataset.panel === active));
   }
 
-  function renderFinance(d) {
-    const sec = d.getElementById('financeiro');
-    if (!sec || !state.onboarded) return;
-    const report = L.dre(state, monthNow());
-    const view = L.dashboard(state, nowIso());
-    const methods = L.expectedByMethod((state.sales || []).filter(s => s.status === 'paga' && L.dayOf(s.at) === L.dayOf(nowIso())));
-    sec.innerHTML = `
-      <div class="fp-kpis">
-        <div class="card stat"><small>Receita da administração no mês</small><strong>${money(report.revenue)}</strong><em>Competência ${esc(monthNow())}</em></div>
-        <div class="card stat"><small>Despesas do mês</small><strong>${money(report.expense)}</strong><em>Energia, água, folha e outras</em></div>
-        <div class="card stat"><small>Resultado</small><strong>${money(report.result)}</strong><em>Margem sobre a receita da casa</em></div>
-        <div class="card stat"><small>A receber de aluguel</small><strong>${money(view.pendingRent)}</strong><em>Contas a pagar ${money(view.pendingPay)}</em></div>
-      </div>
-      <div class="card" style="margin-top:13px"><div class="head"><h2>PDV de hoje por forma de pagamento</h2><span>Conferência de caixa</span></div>${L.METHODS.map(m => `<div class="metric"><span>${m.label}</span><b>${money(methods[m.id] || 0)}</b></div>`).join('')}<div class="note" style="margin-top:12px">Estes valores nascem das vendas. O livro contábil e a exportação ficam em Contabilidade, para o contador não trabalhar com planilha paralela.</div></div>`;
-  }
-
   function renderConfig(d) {
     const sec = d.getElementById('config');
     if (!sec || !state.onboarded) return;
-    const previous = sec.querySelector('#fpSettings');
-    if (previous) previous.remove();
-    const card = d.createElement('div');
-    card.className = 'card';
-    card.id = 'fpSettings';
-    card.style.marginTop = '13px';
-    card.innerHTML = `<div class="head"><h2>Food park</h2><span>Dados usados pelo PDV e pela DRE</span></div>
-      <div class="metric"><span>Unidade</span><b>${esc(state.park.name)}</b></div>
-      <div class="metric"><span>CNPJ</span><b>${esc(state.park.cnpj || 'Não informado')}</b></div>
-      <div class="metric"><span>Boxes</span><b>${esc(state.park.boxes)}</b></div>
-      <div class="metric"><span>Taxa padrão</span><b>${esc(state.park.adminFeePercent)}%</b></div>
-      <div class="metric"><span>Débito / crédito</span><b>${esc(state.park.fees.debito)}% / ${esc(state.park.fees.credito)}%</b></div>
-      <div class="actions-row"><button class="btn" data-act="edit-park">Editar taxas e dados</button><button class="btn" data-act="load-demo">Carregar demonstração</button><button class="btn danger" data-act="reset">Recomeçar do zero</button></div>`;
-    sec.appendChild(card);
+    sec.innerHTML = `<div class="grid cols2">
+      <div class="card" id="fpSettings"><div class="head"><h2>Dados do food park</h2><span>Usados no PDV e no financeiro</span></div>
+        <div class="metric"><span>Nome</span><b>${esc(state.park.name)}</b></div>
+        <div class="metric"><span>Cidade</span><b>${esc(state.park.city || 'Não informada')}</b></div>
+        <div class="metric"><span>CNPJ</span><b>${esc(state.park.cnpj || 'Não informado')}</b></div>
+        <div class="metric"><span>Quantidade de boxes</span><b>${esc(state.park.boxes)}</b></div>
+        <div class="metric"><span>Taxa padrão sobre as vendas</span><b>${esc(state.park.adminFeePercent)}%</b></div>
+        <div class="metric"><span>Taxa da maquininha (débito / crédito)</span><b>${esc(state.park.fees.debito)}% / ${esc(state.park.fees.credito)}%</b></div>
+        <div class="actions-row"><button class="btn primary" data-act="edit-park">Editar dados e taxas</button></div>
+      </div>
+      <div class="card"><div class="head"><h2>Módulos extras</h2></div>
+        <p class="fp-note">Ligue só o que existir no seu espaço. Esses módulos ainda mostram dados de exemplo.</p>
+        <div class="fp-modules">${EXTRA_VIEWS.map(([id, label]) => `<label><input type="checkbox" data-module="${id}" ${modules[id] ? 'checked' : ''}><span>${label}</span></label>`).join('')}</div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:13px"><div class="head"><h2>Demonstração e recomeço</h2></div>
+      <p class="fp-note">A demonstração substitui os dados deste navegador por um food park de exemplo. Recomeçar apaga tudo e volta para a implantação.</p>
+      <div class="actions-row"><button class="btn" data-act="load-demo">Carregar demonstração</button><button class="btn danger" data-act="reset">Recomeçar do zero</button></div>
+    </div>`;
+  }
+
+  // Substitui os atalhos do botão "Novo registro", que ainda apontavam para o complexo de lazer.
+  function renderQuick(d) {
+    const box = d.querySelector('#quickModal .modal');
+    if (!box) return;
+    const session = L.openSession(state);
+    box.innerHTML = `<div class="modal-top"><h3>O que você quer fazer?</h3><button class="close" data-act="quick-close">×</button></div>
+      <div class="fp-quick">
+        <button class="btn primary" data-act="go" data-go="pdv">Nova venda</button>
+        <button class="btn" data-act="${session ? 'close-cash' : 'open-cash'}">${session ? 'Fechar caixa' : 'Abrir caixa'}</button>
+        <button class="btn" data-act="new-stall">Novo lojista</button>
+        <button class="btn" data-act="new-bill">Lançar conta a pagar ou receber</button>
+      </div>`;
+  }
+
+  function exposeToTopbar(d, w) {
+    w.ayvoPendencias = () => pendencias(true);
+    w.ayvoSearchRecords = () => {
+      const pages = titles();
+      const views = MAIN_VIEWS.concat(EXTRA_VIEWS.map(v => v[0])).filter(viewEnabled);
+      const stalls = state.onboarded ? state.stalls.filter(s => s.status === 'ativo') : [];
+      return views.map(id => [pages[id][0], pages[id][1], id, 'Tela'])
+        .concat(stalls.map(s => [s.name, `Box ${L.pad(s.box, 2)}${s.owner ? ' • ' + s.owner : ''}`, 'locacoes', 'Lojista']));
+    };
+    const dot = d.querySelector('.cmd-notify .notification-dot');
+    if (dot) dot.style.display = pendencias(true).length ? '' : 'none';
   }
 
   function render(d, w) {
@@ -376,8 +511,10 @@
     renderBoxes(d);
     renderPdv(d);
     renderAccounting(d);
-    renderFinance(d);
     renderConfig(d);
+    renderQuick(d);
+    ensureNav(d, w);
+    exposeToTopbar(d, w);
     const app = d.getElementById('app');
     if (app && !app.classList.contains('hidden')) hideOnboarding(d);
   }
@@ -403,10 +540,10 @@
     bg.className = 'modal-bg show';
     bg.id = 'fpOnboarding';
     bg.innerHTML = `<div class="modal">
-      <div class="modal-top"><h3>Implantar o food park</h3></div>
-      <p class="fp-note">O local é novo. Comece sem vendas, sem lojista e sem lançamento. A demonstração existe só para a proprietária ver a operação completa.</p>
+      <div class="modal-top"><h3>Vamos configurar o food park</h3></div>
+      <p class="fp-note">Preencha os dados básicos para começar do zero. Se quiser só conhecer o sistema, abra a demonstração.</p>
       <div class="fp-setup">
-        <div class="field"><label>Nome do food park</label><input id="fpName" placeholder="Ex.: Food Park da Orla"></div>
+        <div class="field"><label>Nome do food park</label><input id="fpName" placeholder="Ex.: ${esc(BRAND.name)}"></div>
         <div class="form-grid">
           <div class="field"><label>Cidade</label><input id="fpCity" placeholder="Cidade"></div>
           <div class="field"><label>CNPJ</label><input id="fpCnpj" placeholder="Opcional agora"></div>
@@ -414,7 +551,7 @@
           <div class="field"><label>Taxa de administração (%)</label><input id="fpFee" type="number" min="0" max="100" step="0.1" value="10"></div>
         </div>
       </div>
-      <div class="actions-row"><button class="btn" id="fpDemo">Ver demonstração</button><button class="btn primary" id="fpCreate">Criar food park vazio</button></div></div>`;
+      <div class="actions-row"><button class="btn" id="fpDemo">Ver demonstração</button><button class="btn primary" id="fpCreate">Começar do zero</button></div></div>`;
     d.body.appendChild(bg);
     bg.querySelector('#fpCreate').onclick = () => {
       const name = bg.querySelector('#fpName').value.trim();
@@ -446,14 +583,14 @@
 
   function loadDemo(d, w, bg) {
     state = L.demo(new Date().toISOString());
-    state.park.name = 'Food Park Central';
+    state.park.name = BRAND.name;
     cart = [];
     month = monthNow();
     save();
     if (bg) bg.remove();
     render(d, w);
     activate(d, w, 'dashboard');
-    toast(w, 'Demonstração carregada. As vendas já estão no financeiro.');
+    toast(w, 'Demonstração carregada com vendas de exemplo.');
   }
 
   function download(d, name, text) {
@@ -469,7 +606,10 @@
     const btn = event.target.closest('[data-act]');
     if (!btn) return;
     const act = btn.dataset.act;
+    const quick = btn.closest('#quickModal');
+    if (quick) quick.classList.remove('show');
     try {
+      if (act === 'quick-close') return;
       if (act === 'go') { activate(d, w, btn.dataset.go); return; }
       if (act === 'pick-stall') { stallId = btn.dataset.stall; cart = []; renderPdv(d); return; }
       if (act === 'pay') { payMethod = btn.dataset.method; d.querySelectorAll('#fpPay button').forEach(b => b.classList.toggle('active', b.dataset.method === payMethod)); renderCart(d); return; }
@@ -560,22 +700,22 @@
     activate(d, w, 'pdv');
     modal(d, 'fpReceipt', `
       <div class="modal-top"><h3>Pedido ${L.pad(sale.number, 4)}</h3><button class="close" data-close>×</button></div>
-      <div class="doc"><div class="doc-title">${esc(stallName(sale.stallId))}</div><p>Pagamento em ${esc(sale.method)}. ${sale.holder === 'lojista' ? 'O dinheiro fica no box e a taxa fica a receber.' : 'O valor entrou na administração para repasse.'}</p><hr>
+      <div class="doc"><div class="doc-title">${esc(stallName(sale.stallId))}</div><p>Pagamento em ${esc(methodLabel(sale.method))}. ${sale.holder === 'lojista' ? 'O dinheiro fica com o lojista, que deve a taxa ao food park.' : 'O valor entrou na conta do food park, que repassa ao lojista a parte dele.'}</p><hr>
         ${sale.items.map(item => `<div class="metric"><span>${item.qty}× ${esc(item.name)}</span><b>${money(item.price * item.qty)}</b></div>`).join('')}
         <div class="metric"><span>Total</span><b>${money(sale.total)}</b></div>
         <div class="metric"><span>Taxa do food park</span><b>${money(sale.adminFee)}</b></div>
-        <div class="metric"><span>Líquido do lojista</span><b>${money(sale.netStall)}</b></div>
+        <div class="metric"><span>Fica para o lojista</span><b>${money(sale.netStall)}</b></div>
       </div>
-      <div class="actions-row"><button class="btn" data-close>Nova venda</button><button class="btn primary" id="fpSeeBooks">Ver na contabilidade</button></div>`);
+      <div class="actions-row"><button class="btn" id="fpSeeBooks">Ver no financeiro</button><button class="btn primary" data-close>Nova venda</button></div>`);
     d.getElementById('fpSeeBooks').onclick = () => {
       d.getElementById('fpReceipt').remove();
       activate(d, w, 'contabilidade');
     };
-    toast(w, `Venda ${L.pad(sale.number, 4)} lançada no financeiro`);
+    toast(w, `Venda ${L.pad(sale.number, 4)} registrada`);
   }
 
   function openCashModal(d, w) {
-    const bg = modal(d, 'fpCashOpen', `<div class="modal-top"><h3>Abrir caixa</h3><button class="close" data-close>×</button></div><div class="field"><label>Fundo de troco da administração</label><input id="fpFloat" type="number" min="0" step="0.01" value="200"></div><div class="actions-row"><button class="btn" data-close>Cancelar</button><button class="btn primary" id="fpOpenSave">Abrir</button></div>`);
+    const bg = modal(d, 'fpCashOpen', `<div class="modal-top"><h3>Abrir caixa</h3><button class="close" data-close>×</button></div><div class="field"><label>Troco que fica no caixa (R$)</label><input id="fpFloat" type="number" min="0" step="0.01" value="200"></div><div class="actions-row"><button class="btn" data-close>Cancelar</button><button class="btn primary" id="fpOpenSave">Abrir</button></div>`);
     bg.querySelector('#fpOpenSave').onclick = () => {
       try {
         keep(L.openCash(state, { openingFloat: bg.querySelector('#fpFloat').value }, nowIso()));
@@ -588,7 +728,7 @@
     const session = L.openSession(state);
     if (!session) return;
     const expected = L.expectedByMethod(L.sessionSales(state, session.id));
-    const bg = modal(d, 'fpCashClose', `<div class="modal-top"><h3>Fechar caixa</h3><button class="close" data-close>×</button></div><p class="fp-note">Confira o valor de cada forma. Diferença vira quebra de caixa no resultado.</p>${L.METHODS.map(m => `<div class="field"><label>${m.label} • sistema ${money(expected[m.id] || 0)}</label><input data-count="${m.id}" type="number" min="0" step="0.01" value="${expected[m.id] || 0}"></div>`).join('')}<div class="actions-row"><button class="btn" data-close>Cancelar</button><button class="btn primary" id="fpCloseSave">Fechar caixa</button></div>`);
+    const bg = modal(d, 'fpCashClose', `<div class="modal-top"><h3>Fechar caixa</h3><button class="close" data-close>×</button></div><p class="fp-note">Conte o que entrou em cada forma de pagamento. Se o valor contado for diferente do sistema, a diferença entra no resultado como quebra de caixa.</p>${L.METHODS.map(m => `<div class="field"><label>${m.label} (sistema: ${money(expected[m.id] || 0)})</label><input data-count="${m.id}" type="number" min="0" step="0.01" value="${expected[m.id] || 0}"></div>`).join('')}<div class="actions-row"><button class="btn" data-close>Cancelar</button><button class="btn primary" id="fpCloseSave">Fechar caixa</button></div>`);
     bg.querySelector('#fpCloseSave').onclick = () => {
       const counted = {};
       L.METHODS.forEach(m => { counted[m.id] = bg.querySelector(`[data-count="${m.id}"]`).value; });
@@ -601,7 +741,7 @@
   }
 
   function moveModal(d, w) {
-    const bg = modal(d, 'fpMove', `<div class="modal-top"><h3>Sangria ou suprimento</h3><button class="close" data-close>×</button></div><div class="field"><label>Tipo</label><select id="fpMoveType"><option value="sangria">Sangria</option><option value="suprimento">Suprimento</option></select></div><div class="field"><label>Valor</label><input id="fpMoveAmount" type="number" min="0" step="0.01"></div><div class="field"><label>Histórico</label><input id="fpMoveNote" placeholder="Ex.: troco para o box 02"></div><div class="actions-row"><button class="btn" data-close>Cancelar</button><button class="btn primary" id="fpMoveSave">Lançar</button></div>`);
+    const bg = modal(d, 'fpMove', `<div class="modal-top"><h3>Tirar ou colocar dinheiro no caixa</h3><button class="close" data-close>×</button></div><div class="field"><label>O que vai fazer</label><select id="fpMoveType"><option value="sangria">Tirar dinheiro do caixa (sangria)</option><option value="suprimento">Colocar troco no caixa (suprimento)</option></select></div><div class="field"><label>Valor (R$)</label><input id="fpMoveAmount" type="number" min="0" step="0.01"></div><div class="field"><label>Motivo</label><input id="fpMoveNote" placeholder="Ex.: troco para o box 02"></div><div class="actions-row"><button class="btn" data-close>Cancelar</button><button class="btn primary" id="fpMoveSave">Lançar</button></div>`);
     bg.querySelector('#fpMoveSave').onclick = () => {
       try {
         keep(L.cashMove(state, {
@@ -713,9 +853,9 @@
       <div class="field"><label>Nome</label><input id="fpEditName" value="${esc(state.park.name)}"></div>
       <div class="field"><label>Cidade</label><input id="fpEditCity" value="${esc(state.park.city || '')}"></div>
       <div class="field"><label>CNPJ</label><input id="fpEditCnpj" value="${esc(state.park.cnpj || '')}"></div>
-      <div class="field"><label>Taxa padrão (%)</label><input id="fpEditFee" type="number" min="0" max="100" step="0.1" value="${esc(state.park.adminFeePercent)}"></div>
-      <div class="field"><label>Taxa débito (%)</label><input id="fpEditDebit" type="number" min="0" max="20" step="0.01" value="${esc(state.park.fees.debito)}"></div>
-      <div class="field"><label>Taxa crédito (%)</label><input id="fpEditCredit" type="number" min="0" max="20" step="0.01" value="${esc(state.park.fees.credito)}"></div>
+      <div class="field"><label>Taxa padrão sobre as vendas (%)</label><input id="fpEditFee" type="number" min="0" max="100" step="0.1" value="${esc(state.park.adminFeePercent)}"></div>
+      <div class="field"><label>Maquininha no débito (%)</label><input id="fpEditDebit" type="number" min="0" max="20" step="0.01" value="${esc(state.park.fees.debito)}"></div>
+      <div class="field"><label>Maquininha no crédito (%)</label><input id="fpEditCredit" type="number" min="0" max="20" step="0.01" value="${esc(state.park.fees.credito)}"></div>
     </div><p class="fp-note">A taxa padrão vale para lojistas novos. Vendas já feitas permanecem com a taxa da época.</p><div class="actions-row"><button class="btn" data-close>Cancelar</button><button class="btn primary" id="fpParkSave">Salvar</button></div>`);
     bg.querySelector('#fpParkSave').onclick = () => {
       const fee = Number(bg.querySelector('#fpEditFee').value);
@@ -734,6 +874,15 @@
     if (d.documentElement.dataset.foodparkBound === '1') return;
     d.documentElement.dataset.foodparkBound = '1';
     d.addEventListener('click', event => onClick(d, w, event));
+    d.addEventListener('change', event => {
+      const id = event.target && event.target.dataset && event.target.dataset.module;
+      if (!id) return;
+      modules[id] = !!event.target.checked;
+      saveModules();
+      ensureNav(d, w);
+      exposeToTopbar(d, w);
+      toast(w, event.target.checked ? 'Módulo ligado no menu' : 'Módulo desligado do menu');
+    });
     d.addEventListener('input', event => {
       if (event.target && (event.target.id === 'fpDiscount')) renderCart(d);
       if (event.target && event.target.id === 'fpMonth') {
@@ -771,6 +920,7 @@
       ensureViews(d);
       bind(d, w);
       brand(d);
+      exposeToTopbar(d, w);
       if (state.onboarded) render(d, w);
       d.documentElement.dataset.foodpark = '1';
       if (!d.documentElement.dataset.foodparkRefresh) {

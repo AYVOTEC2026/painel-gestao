@@ -729,7 +729,7 @@
     });
     state.mode = 'demo';
     state.park.name = 'Food Park Central';
-    state.park.city = 'A definir com a proprietária';
+    state.park.city = '';
     const catalog = [
       ['Brasa & Burger', 'Marina Alves', '12.345.678/0001-90', 4200, [['Smash burger', 36], ['Batata rústica', 18], ['Milk-shake', 16], ['Combo brasa', 52]]],
       ['Forno da Praça', 'Ricardo Lima', '23.456.789/0001-01', 4500, [['Pizza média', 48], ['Fatia', 14], ['Calzone', 32], ['Refrigerante', 8]]],

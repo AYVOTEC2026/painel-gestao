@@ -10,20 +10,20 @@
     if(d.getElementById('parkOpsStyle'))return;
     const st=d.createElement('style');st.id='parkOpsStyle';st.textContent=`
       :root{
-        --blue:#f28c18!important;--blue2:#d96f08!important;--blue-soft:#fff3e5!important;--blue-line:#ffd8ad!important;
+        --blue:#a05433!important;--blue2:#8a4426!important;--blue-soft:#f7ece5!important;--blue-line:#e8cbbb!important;
         --bg:#f7f7f5!important;--panel:#ffffff!important;--panel2:#fffaf5!important;--dark:#22201e!important;--dark2:#302b27!important;
-        --amber:#d96f08!important;--amber-soft:#fff0df!important;
+        --amber:#8a4426!important;--amber-soft:#f7ece5!important;
       }
-      .login{background:radial-gradient(1000px circle at 15% 10%,rgba(242,140,24,.22),transparent 55%),linear-gradient(135deg,#211f1c,#302a25 58%,#201e1b)!important}
-      .login-copy .ey,.topbar .ey{color:#f28c18!important}.field input:focus,.field select:focus,.field textarea:focus{border-color:#f7ad58!important;box-shadow:0 0 0 3px rgba(242,140,24,.12)!important}
-      .nav button.active{background:linear-gradient(90deg,rgba(242,140,24,.32),rgba(242,140,24,.06))!important;box-shadow:inset 3px 0 0 #f28c18!important}
-      .btn.primary{background:linear-gradient(145deg,#f59a2b,#d96f08)!important;box-shadow:0 8px 18px rgba(217,111,8,.22)!important}
-      .btn.soft{background:#fff3e5!important;border-color:#ffd8ad!important;color:#b85e08!important}.info{background:#fff3e5!important;color:#bd650d!important}
-      .round{background:#fff3e5!important;color:#b85e08!important}.bar i,.bc i{background:linear-gradient(90deg,#f6a13c,#f28c18)!important}.slot{background:#fff3e5!important;border-color:#ffd8ad!important}
-      .park-hero{display:flex;justify-content:space-between;gap:18px;align-items:center;padding:20px;border-radius:16px;background:linear-gradient(120deg,#fff7ee,#fff 65%);border:1px solid #ffd8ad;margin-bottom:13px;box-shadow:var(--shadow)}
-      .park-hero h2{font-size:20px;margin:0 0 6px}.park-hero p{margin:0;color:var(--muted);font-size:11px;line-height:1.55;max-width:720px}.park-hero .rule{background:#f28c18;color:#fff;border-radius:12px;padding:13px 16px;font-weight:850;font-size:12px;text-align:center;min-width:180px;box-shadow:0 9px 22px rgba(242,140,24,.22)}.park-hero .rule small{display:block;font-size:9px;opacity:.85;margin-top:4px;font-weight:650}
-      .ops-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 9px;border-radius:999px;background:#fff4e8;border:1px solid #ffd8ad;color:#a95606;font-size:9px;font-weight:800}
-      .pos-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:13px}.product-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.product{border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff}.product b{font-size:11px}.product small{display:block;color:var(--muted);font-size:9px;margin:5px 0 9px}.product strong{font-size:12px;color:#c76408}.cart-line{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--line);font-size:10px}.cart-total{display:flex;justify-content:space-between;font-size:13px;font-weight:850;padding:13px 0}.kpi-orange strong{color:#d96f08}.container-occupancy{grid-template-columns:repeat(3,1fr)!important}.container-occupancy .unit{min-height:118px}.container-occupancy .unit .contract{margin-top:8px;font-size:8.8px;color:var(--muted)}
+      .login{background:radial-gradient(1000px circle at 15% 10%,rgba(160,84,51,.22),transparent 55%),linear-gradient(135deg,#211f1c,#302a25 58%,#201e1b)!important}
+      .login-copy .ey,.topbar .ey{color:#a05433!important}.field input:focus,.field select:focus,.field textarea:focus{border-color:#c9937a!important;box-shadow:0 0 0 3px rgba(160,84,51,.12)!important}
+      .nav button.active{background:linear-gradient(90deg,rgba(160,84,51,.32),rgba(160,84,51,.06))!important;box-shadow:inset 3px 0 0 #a05433!important}
+      .btn.primary{background:linear-gradient(145deg,#c27454,#8a4426)!important;box-shadow:0 8px 18px rgba(160,84,51,.22)!important}
+      .btn.soft{background:#f7ece5!important;border-color:#e8cbbb!important;color:#8a4426!important}.info{background:#f7ece5!important;color:#8a4426!important}
+      .round{background:#f7ece5!important;color:#8a4426!important}.bar i,.bc i{background:linear-gradient(90deg,#c27454,#a05433)!important}.slot{background:#f7ece5!important;border-color:#e8cbbb!important}
+      .park-hero{display:flex;justify-content:space-between;gap:18px;align-items:center;padding:20px;border-radius:16px;background:linear-gradient(120deg,#f7ece5,#fff 65%);border:1px solid #e8cbbb;margin-bottom:13px;box-shadow:var(--shadow)}
+      .park-hero h2{font-size:20px;margin:0 0 6px}.park-hero p{margin:0;color:var(--muted);font-size:11px;line-height:1.55;max-width:720px}.park-hero .rule{background:#a05433;color:#fff;border-radius:12px;padding:13px 16px;font-weight:850;font-size:12px;text-align:center;min-width:180px;box-shadow:0 9px 22px rgba(160,84,51,.22)}.park-hero .rule small{display:block;font-size:9px;opacity:.85;margin-top:4px;font-weight:650}
+      .ops-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 9px;border-radius:999px;background:#f7ece5;border:1px solid #e8cbbb;color:#8a4426;font-size:9px;font-weight:800}
+      .pos-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:13px}.product-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.product{border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff}.product b{font-size:11px}.product small{display:block;color:var(--muted);font-size:9px;margin:5px 0 9px}.product strong{font-size:12px;color:#8a4426}.cart-line{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--line);font-size:10px}.cart-total{display:flex;justify-content:space-between;font-size:13px;font-weight:850;padding:13px 0}.kpi-orange strong{color:#8a4426}.container-occupancy{grid-template-columns:repeat(3,1fr)!important}.container-occupancy .unit{min-height:118px}.container-occupancy .unit .contract{margin-top:8px;font-size:8.8px;color:var(--muted)}
       @media(max-width:900px){.park-hero{align-items:flex-start;flex-direction:column}.park-hero .rule{width:100%}.pos-grid{grid-template-columns:1fr}.product-grid{grid-template-columns:1fr 1fr}.container-occupancy{grid-template-columns:1fr 1fr!important}}
       @media(max-width:560px){.product-grid,.container-occupancy{grid-template-columns:1fr!important}}
     `;d.head.appendChild(st);
@@ -100,13 +100,9 @@
     const sec=d.getElementById('crm');if(!sec||sec.querySelector('[data-ops-crm]'))return;const n=d.createElement('div');n.dataset.opsCrm='1';n.className='note';n.style.marginBottom='13px';n.innerHTML='<b style="color:var(--ink)">CRM 360° do parque:</b> clientes de pulseira, day use, loja, quadras, festas e locações ficam em uma base única. O histórico permite campanhas por frequência, aniversário, ticket, serviço utilizado e última visita.';sec.prepend(n)
   }
 
-  function upgradeDashboard(d){
-    const sec=d.getElementById('dashboard');if(!sec||sec.querySelector('[data-park-summary]'))return;const h=d.createElement('div');h.dataset.parkSummary='1';h.className='park-hero';h.innerHTML='<div><span class="ops-chip">Gestão integrada do empreendimento</span><h2 style="margin-top:9px">Operação completa em um único sistema</h2><p>Bilheteria e loja, pulseiras, day use, quadras, 9 contêineres de locação, festas, financeiro, contratos e CRM conectados em uma visão única da operação.</p></div><div class="rule">OPERAÇÃO 360°<small>do atendimento ao financeiro</small></div>';sec.prepend(h)
-  }
-
   function boot(){
     const d=frame.contentDocument,w=frame.contentWindow;if(!d||!w)return;
-    try{addStyle(d);navButton(d);buildBilheteria(d,w);rebuildRentals(d);upgradePark(d,w);upgradeCourts(d);upgradeParties(d);upgradeCRM(d);upgradeDashboard(d);const badge=d.getElementById('ayvoDemoBadge');if(badge){badge.style.background='#f28c18';badge.style.borderColor='#f5a340'}w.toast('Operação do parque configurada • tema laranja e branco aplicado')}catch(e){console.error('AYVO park operations',e)}
+    try{addStyle(d);navButton(d);buildBilheteria(d,w);rebuildRentals(d);upgradePark(d,w);upgradeCourts(d);upgradeParties(d);upgradeCRM(d);const badge=d.getElementById('ayvoDemoBadge');if(badge){badge.style.background='#a05433';badge.style.borderColor='#c27454'}}catch(e){console.error('AYVO park operations',e)}
   }
   frame.addEventListener('load',()=>setTimeout(boot,220));
   if(frame.contentDocument?.readyState==='complete')setTimeout(boot,220);
