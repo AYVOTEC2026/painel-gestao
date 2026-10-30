@@ -113,7 +113,7 @@ function painel(ctx, id) {
       <div class="separador"></div>
       <h3 class="sub-titulo">Contrato e arquivos</h3>
       ${e.anexos.length ? `<ul class="anexos">${e.anexos.map(a => `<li>${icone('anexo')}<a href="${esc(api.anexo(a.id))}" target="_blank" rel="noopener">${esc(a.nome)}</a><small>${esc(tamanhoArquivo(a.tamanho))}</small><button type="button" class="botao fantasma pequeno" data-e="remover-anexo" data-id="${a.id}" aria-label="Remover ${esc(a.nome)}">${icone('lixeira')}</button></li>`).join('')}</ul>` : '<p class="nota">Nenhum arquivo.</p>'}
-      <label class="botao pequeno anexar">${icone('anexo')}Anexar arquivo<input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" data-e="anexar" hidden></label>`;
+      <label class="botao pequeno anexar">${icone('anexo')}Anexar arquivo<input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" data-e="anexar" class="so-leitor"></label>`;
   };
   const e0 = ctx.dadosAtuais().eventos.find(x => x.id === id);
   if (!e0) return;

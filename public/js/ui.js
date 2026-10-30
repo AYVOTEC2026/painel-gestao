@@ -119,6 +119,30 @@ export const selo = (texto, tipo = '') => `<span class="selo ${tipo}">${esc(text
 export const vazio = ({ icone: ic = 'info', titulo, texto, botao = '' }) =>
   `<div class="vazio"><div class="vazio-icone">${icone(ic)}</div><h3>${esc(titulo)}</h3><p>${esc(texto)}</p>${botao}</div>`;
 
+/* ------------------------------------------------- arrastar e soltar */
+
+const temArquivos = e => !!e.dataTransfer && [...e.dataTransfer.types].includes('Files');
+
+// Arquivo solto fora de uma área de anexo não pode abrir no navegador e tirar a pessoa do sistema.
+window.addEventListener('dragover', e => { if (temArquivos(e)) e.preventDefault(); });
+window.addEventListener('drop', e => { if (temArquivos(e)) e.preventDefault(); });
+
+/** Transforma um elemento numa área onde se soltam arquivos. */
+export function zonaDeArquivos(el, aoSoltar) {
+  let dentro = 0;
+  el.addEventListener('dragenter', e => { if (!temArquivos(e)) return; e.preventDefault(); dentro += 1; el.classList.add('arrastando'); });
+  el.addEventListener('dragover', e => { if (!temArquivos(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
+  el.addEventListener('dragleave', () => { dentro = Math.max(0, dentro - 1); if (!dentro) el.classList.remove('arrastando'); });
+  el.addEventListener('drop', e => {
+    if (!temArquivos(e)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    dentro = 0;
+    el.classList.remove('arrastando');
+    aoSoltar([...e.dataTransfer.files]);
+  });
+}
+
 /* --------------------------------------------------------------- avisos */
 
 export function avisar(msg, tipo = 'ok') {

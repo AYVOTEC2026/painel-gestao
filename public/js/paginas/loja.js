@@ -1,5 +1,5 @@
 import { esc, icone, dinheiro, dataCurta, hora, plural, selo, vazio, avisar, abrirModal, campo, campoDinheiro } from '../ui.js';
-import { abas, abaAtual, seletorMes, fatos, campoForma, nomeForma } from './comum.js';
+import { abas, abaAtual, seletorMes, fatos, campoForma, nomeForma, enviarArquivos, zonaDaNota, ligarZonaDaNota } from './comum.js';
 
 const ABAS = ['loja', 'ingressos', 'vendas'];
 
@@ -31,23 +31,47 @@ function salvarProduto(ctx, p, tipoNovo) {
 
 function entradaEstoque(ctx, p) {
   const d = ctx.dadosAtuais();
+  let arquivos = () => [];
   const m = abrirModal({
     titulo: `Entrada de estoque: ${p.nome}`,
     subtitulo: `Hoje há ${p.estoque} em estoque.`,
+    largo: true,
     corpo: `<form class="grade-form">
+      ${zonaDaNota('Nota fiscal da compra', 'Solte o XML ou o PDF da nota. Ela fica guardada na despesa da compra, pronta para o contador.')}
       ${campo({ nome: 'quantidade', rotulo: 'Quantas unidades chegaram', tipo: 'number', obrigatorio: true, extra: 'min="1"' })}
       ${campoDinheiro({ nome: 'custo', rotulo: 'Custo total da compra', placeholder: '0,00', ajuda: 'Opcional. Vira uma despesa de compra no financeiro.' })}
       ${campo({ nome: 'fornecedor', rotulo: 'Fornecedor', classe: 'inteira' })}
+      ${campo({ nome: 'pessoaDocumento', rotulo: 'CNPJ do fornecedor', placeholder: '00.000.000/0000-00' })}
+      ${campo({ nome: 'documentoNumero', rotulo: 'Número da nota', placeholder: 'Ex.: 4821' })}
       <label class="escolha inteira"><input type="checkbox" name="jaPaga" checked><span><b>Compra já paga</b><small>Se não marcar, fica em contas a pagar.</small></span></label>
       <div class="inteira" data-pago>${campoForma(d.formas, { semDinheiro: true })}</div>
       <div class="inteira oculto" data-vencimento>${campo({ nome: 'vencimento', rotulo: 'Vencimento', tipo: 'date' })}</div>
     </form>`,
     botao: 'Dar entrada',
-    aoEnviar: v => ctx.acao('entrada-estoque', { produtoId: p.id, quantidade: v.quantidade, custo: v.custo, fornecedor: v.fornecedor, jaPaga: v.jaPaga === 'on', forma: v.forma, vencimento: v.vencimento }, 'Estoque atualizado.')
+    aoEnviar: async (v, { mostrarErro }) => {
+      if (arquivos().length && !(Number(v.custo) > 0)) {
+        mostrarErro('Informe o custo da compra. A nota fica anexada na despesa que ele gera.');
+        return false;
+      }
+      const r = await ctx.acao('entrada-estoque', {
+        produtoId: p.id, quantidade: v.quantidade, custo: v.custo, fornecedor: v.fornecedor, pessoaDocumento: v.pessoaDocumento,
+        documentoNumero: v.documentoNumero, jaPaga: v.jaPaga === 'on', forma: v.forma, vencimento: v.vencimento
+      });
+      const enviados = arquivos().length && r && r.contaId ? await enviarArquivos('conta', r.contaId, arquivos()) : 0;
+      if (enviados) await ctx.recarregar();
+      avisar(enviados ? 'Estoque atualizado. A nota está na despesa da compra.' : 'Estoque atualizado.');
+    }
   });
   m.fundo.querySelector('[name=jaPaga]').addEventListener('change', e => {
     m.fundo.querySelector('[data-pago]').classList.toggle('oculto', !e.target.checked);
     m.fundo.querySelector('[data-vencimento]').classList.toggle('oculto', e.target.checked);
+  });
+  arquivos = ligarZonaDaNota(m.fundo, (nota, preencher) => {
+    preencher('fornecedor', nota.emitente);
+    preencher('pessoaDocumento', nota.documento);
+    preencher('documentoNumero', nota.numero);
+    if (nota.valor) preencher('custo', nota.valor.toFixed(2));
+    preencher('vencimento', nota.vencimento);
   });
 }
 

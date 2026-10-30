@@ -79,6 +79,7 @@ function pdfSimples(linhas) {
 async function gerarDemo(tx, parqueId, agora) {
   const hoje = D.diaDe(agora);
   const r = sorteador(Number(hoje.replace(/-/g, '')));
+  const nomeComplexo = ((await tx.query('select nome from parques where id = $1', [parqueId])).rows[0] || {}).nome || 'Complexo';
   const config = completar(Object.assign({}, PADRAO, { cidade: 'Fortaleza, CE', cnpj: '12.345.678/0001-90', telefone: '(85) 3333-2100' }));
   const taxas = config.taxas;
   const inicio = `${D.somarMeses(D.mesDe(hoje), -1)}-01`;
@@ -213,40 +214,78 @@ async function gerarDemo(tx, parqueId, agora) {
     Object.assign(cob, { status: 'paga', pago_em: em, valor_pago: cob.valor, forma });
   });
 
+  // [categoria, descrição, valor, dia, fornecedor, CNPJ, tipo de documento]
   const despesas = [
-    ['folha', 'Folha de pagamento e encargos', 2140000, 5, 'Equipe do complexo'],
-    ['limpeza', 'Limpeza e segurança terceirizadas', 520000, 10, 'Prime Serviços'],
-    ['energia', 'Energia das áreas comuns', 785000, 12, 'Enel'],
-    ['agua', 'Água e esgoto', 148000, 15, 'Cagece'],
-    ['impostos', 'Impostos do mês (Simples Nacional)', 360000, 20, 'Receita Federal'],
-    ['manutencao', 'Manutenção das quadras e do parque', 210000, 21, 'Areia & Rede Manutenção'],
-    ['marketing', 'Anúncios nas redes sociais', 150000, 25, 'Meta Ads']
+    ['folha', 'Folha de pagamento e encargos', 2140000, 5, 'Equipe do complexo', '', 'folha'],
+    ['limpeza', 'Limpeza e segurança terceirizadas', 520000, 10, 'Prime Serviços', '23.415.887/0001-04', 'nota_fiscal'],
+    ['energia', 'Energia das áreas comuns', 785000, 12, 'Concessionária de energia', '11.222.333/0001-81', 'fatura'],
+    ['agua', 'Água e esgoto', 148000, 15, 'Companhia de água e esgoto', '22.333.444/0001-72', 'fatura'],
+    ['impostos', 'Impostos do mês (Simples Nacional)', 360000, 20, 'Simples Nacional (DAS)', '', 'guia'],
+    ['manutencao', 'Manutenção das quadras e do parque', 210000, 21, 'Areia & Rede Manutenção', '34.556.778/0001-90', 'nota_fiscal'],
+    ['marketing', 'Anúncios nas redes sociais', 150000, 25, 'Agência Digital Litoral', '45.667.889/0001-23', 'nota_fiscal']
   ];
+  const TITULOS = { nota_fiscal: 'NOTA FISCAL DE SERVICOS ELETRONICA - NFS-e', fatura: 'FATURA DE CONSUMO', guia: 'DOCUMENTO DE ARRECADACAO DO SIMPLES NACIONAL', folha: 'RESUMO DA FOLHA DE PAGAMENTO' };
+  const valorTexto = c => (c / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const anexar = (conta, nome, mime, conteudo) => add('anexos', {
+    dono_tipo: 'conta', dono_id: conta.id, nome, mime, tamanho: conteudo.length, conteudo: '\\x' + conteudo.toString('hex'),
+    enviado_por: USUARIOS_DEMO[0].nome, criado_em: conta.criado_em
+  });
+  // Notas que ficam faltando de propósito, para a demonstração mostrar o aviso e o anexo.
+  const faltando = new Set([`marketing|${meses[0]}`, `manutencao|${meses[1]}`]);
   for (const mes of meses) {
-    despesas.forEach(([categoria, descricao, base, dia, pessoa]) => {
+    despesas.forEach(([categoria, descricao, base, dia, pessoa, cnpj, tipo]) => {
       const valor = categoria === 'energia' || categoria === 'agua' ? Math.round(base * (0.9 + r() * 0.2) / 100) * 100 : base;
       const venc = `${mes}-${D.pad(dia)}`;
       const criado = hora(`${mes}-01`, 8);
-      const conta = add('contas', { sentido: 'pagar', descricao, categoria, pessoa, valor, vencimento: venc, competencia: mes, status: 'aberta', pago_em: null, forma: null, criado_em: criado, criado_por: USUARIOS_DEMO[0].nome });
+      const numero = tipo === 'nota_fiscal' || tipo === 'fatura' ? String(r.entre(10000, 99999)) : '';
+      const conta = add('contas', {
+        sentido: 'pagar', descricao, categoria, pessoa, valor, vencimento: venc, competencia: mes, status: 'aberta', pago_em: null, forma: null,
+        criado_em: criado, criado_por: USUARIOS_DEMO[0].nome, documento_tipo: tipo, documento_numero: numero, pessoa_documento: cnpj, justificativa: ''
+      });
       lancar(C.reconhecimento(C.CATEGORIAS_DESPESA[categoria], 'contas_pagar', valor, descricao), { origem: 'conta', id: conta.id, em: criado, mes });
       const em = hora(venc, 9, 30);
       if (jaAconteceu(em)) {
         pagar({ area: 'despesas', origem: 'conta', id: conta.id, descricao, valor, forma: 'transferencia', debito: 'contas_pagar', em });
         Object.assign(conta, { status: 'paga', pago_em: em, forma: 'transferencia' });
       }
+      if (faltando.has(`${categoria}|${mes}`)) return;
+      const pdf = pdfSimples([
+        `${TITULOS[tipo]} (DEMONSTRACAO)`, '',
+        `Emitente: ${pessoa}`, cnpj ? `CNPJ: ${cnpj}` : '', `Tomador: ${nomeComplexo}`,
+        numero ? `Numero: ${numero}` : '', `Competencia: ${mes.slice(5, 7)}/${mes.slice(0, 4)}`,
+        `Descricao: ${descricao}`, `Valor: ${valorTexto(valor)}`, `Vencimento: ${venc.split('-').reverse().join('/')}`, '',
+        'Documento ficticio gerado para a demonstracao do sistema.'
+      ].filter(l => l !== null));
+      anexar(conta, `${{ nota_fiscal: 'NFS-e', fatura: 'Fatura', guia: 'DAS', folha: 'Folha' }[tipo]} ${numero || mes} - ${pessoa}.pdf`, 'application/pdf', pdf);
     });
   }
-  // Compra de mercadoria para a loja e uma receita avulsa de patrocínio.
-  [['Compra: 6× Raquete de beach tennis Pro', 104000, `${D.mesDe(inicio)}-08`], ['Compra: 48× Bola de beach tennis (tubo com 3)', 115200, `${D.mesDe(hoje)}-03`]].forEach(([descricao, valor, dia]) => {
+  // Compra de mercadoria para a loja, com a NF-e em PDF e em XML, e uma receita avulsa de patrocínio.
+  [['Compra: 6× Raquete de beach tennis Pro', 104000, `${D.mesDe(inicio)}-08`, 'Raquete de beach tennis Pro', 6], ['Compra: 48× Bola de beach tennis (tubo com 3)', 115200, `${D.mesDe(hoje)}-03`, 'Bola de beach tennis (tubo com 3)', 48]].forEach(([descricao, valor, dia, produto, qtd]) => {
     const em = hora(dia, 11);
     if (!jaAconteceu(em)) return;
-    const conta = add('contas', { sentido: 'pagar', descricao, categoria: 'compras', pessoa: 'Beach Pro Distribuidora', valor, vencimento: dia, competencia: D.mesDe(dia), status: 'paga', pago_em: em, forma: 'pix', criado_em: em, criado_por: USUARIOS_DEMO[0].nome });
+    const numero = String(r.entre(100000, 999999));
+    const conta = add('contas', {
+      sentido: 'pagar', descricao, categoria: 'compras', pessoa: 'Beach Pro Distribuidora', valor, vencimento: dia, competencia: D.mesDe(dia),
+      status: 'paga', pago_em: em, forma: 'pix', criado_em: em, criado_por: USUARIOS_DEMO[0].nome,
+      documento_tipo: 'nota_fiscal', documento_numero: numero, pessoa_documento: '56.778.990/0001-12', justificativa: ''
+    });
     lancar(C.reconhecimento('despesa_compras', 'contas_pagar', valor, descricao), { origem: 'conta', id: conta.id, em });
     pagar({ area: 'despesas', origem: 'conta', id: conta.id, descricao, valor, forma: 'pix', debito: 'contas_pagar', em });
+    const chave = `23${dia.slice(2, 4)}${dia.slice(5, 7)}56778990000112550010${numero.padStart(9, '0')}1${String(r.entre(10000000, 99999999))}`.slice(0, 44).padEnd(44, '0');
+    const xml = Buffer.from(`<?xml version="1.0" encoding="UTF-8"?><nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00"><NFe><infNFe Id="NFe${chave}" versao="4.00"><ide><cUF>23</cUF><natOp>VENDA DE MERCADORIA</natOp><mod>55</mod><serie>1</serie><nNF>${numero}</nNF><dhEmi>${dia}T10:30:00-03:00</dhEmi></ide><emit><CNPJ>56778990000112</CNPJ><xNome>BEACH PRO DISTRIBUIDORA LTDA (DEMONSTRACAO)</xNome><xFant>Beach Pro Distribuidora</xFant></emit><dest><xNome>${nomeComplexo}</xNome></dest><det nItem="1"><prod><cProd>BT-${qtd}</cProd><xProd>${produto}</xProd><qCom>${qtd}.0000</qCom><vProd>${(valor / 100).toFixed(2)}</vProd></prod></det><total><ICMSTot><vNF>${(valor / 100).toFixed(2)}</vNF></ICMSTot></total></infNFe></NFe></nfeProc>`, 'utf8');
+    anexar(conta, `NF-e ${numero} - Beach Pro Distribuidora.xml`, 'application/xml', xml);
+    anexar(conta, `DANFE NF-e ${numero} - Beach Pro Distribuidora.pdf`, 'application/pdf', pdfSimples([
+      'DANFE - DOCUMENTO AUXILIAR DA NF-e (DEMONSTRACAO)', '', 'Emitente: Beach Pro Distribuidora LTDA', 'CNPJ: 56.778.990/0001-12',
+      `Destinatario: ${nomeComplexo}`, `NF-e numero ${numero}, serie 1`, `Produto: ${qtd} x ${produto}`, `Valor total: ${valorTexto(valor)}`, '',
+      'Documento ficticio gerado para a demonstracao do sistema.'
+    ]));
   });
   {
     const em = hora(`${D.mesDe(inicio)}-15`, 14);
-    const conta = add('contas', { sentido: 'receber', descricao: 'Patrocínio: placa na quadra 1', categoria: 'outras', pessoa: 'Arena Sports', valor: 120000, vencimento: D.diaDe(em), competencia: D.mesDe(em), status: 'paga', pago_em: em, forma: 'pix', criado_em: em, criado_por: USUARIOS_DEMO[0].nome });
+    const conta = add('contas', {
+      sentido: 'receber', descricao: 'Patrocínio: placa na quadra 1', categoria: 'outras', pessoa: 'Arena Sports', valor: 120000, vencimento: D.diaDe(em), competencia: D.mesDe(em),
+      status: 'paga', pago_em: em, forma: 'pix', criado_em: em, criado_por: USUARIOS_DEMO[0].nome, documento_tipo: 'nota_fiscal', documento_numero: '', pessoa_documento: '', justificativa: ''
+    });
     lancar(C.reconhecimento('contas_receber', 'receita_outras', 120000, conta.descricao), { origem: 'conta', id: conta.id, em });
     receber({ area: 'outras', origem: 'conta', id: conta.id, descricao: conta.descricao, valor: 120000, forma: 'pix', creditos: [{ conta: 'contas_receber', valor: 120000 }], em, por: USUARIOS_DEMO[0].nome });
   }

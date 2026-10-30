@@ -58,12 +58,14 @@ const ACOES = {
         // O custo vira uma despesa de compra, paga agora ou a pagar no vencimento.
         const conta = await criarConta(ctx, {
           sentido: 'pagar', categoria: 'compras', descricao: `Compra: ${qtd}× ${p.nome}`, pessoa: d.fornecedor,
-          valor: custo / 100, vencimento: d.vencimento || ctx.hoje
+          valor: custo / 100, vencimento: d.vencimento || ctx.hoje,
+          documentoTipo: 'nota_fiscal', documentoNumero: d.documentoNumero, pessoaDocumento: d.pessoaDocumento
         });
         if (d.jaPaga) await baixarConta(ctx, conta, d.forma);
         extra = ` Custo de ${formatar(custo)} lançado como despesa${d.jaPaga ? ' paga' : ' a pagar'}.`;
+        return { resumo: `Deu entrada em ${qtd} unidades de ${p.nome} (agora ${p.estoque + qtd}).${extra}`, resultado: { contaId: conta.id } };
       }
-      return { resumo: `Deu entrada em ${qtd} unidades de ${p.nome} (agora ${p.estoque + qtd}).${extra}` };
+      return { resumo: `Deu entrada em ${qtd} unidades de ${p.nome} (agora ${p.estoque + qtd}).` };
     }
   },
 

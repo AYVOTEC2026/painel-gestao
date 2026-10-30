@@ -13,10 +13,13 @@ const { prepararParque } = require('./servicos/preparo');
 const operacao = require('./consultas/operacao');
 const gestao = require('./consultas/gestao');
 const { exportar } = require('./consultas/exportar');
+const { gerarPacote } = require('./consultas/pacote');
 const demo = require('./demo');
 
 const HASH_FALSO = A.hashSenha('senha-que-ninguem-usa');
-const TIPOS_ANEXO = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+const TIPOS_ANEXO = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'application/xml', 'text/xml'];
+// Quem pode receber anexo: contrato de locação, evento e despesa (nota fiscal).
+const DONOS_ANEXO = { contrato: { tabela: 'contratos', nome: 'contrato' }, evento: { tabela: 'eventos', nome: 'evento' }, conta: { tabela: 'contas', nome: 'despesa' } };
 
 const TELAS = {
   painel: operacao.painel,
@@ -85,7 +88,7 @@ function criarApp({ cfg, banco, agora }) {
     }
     if (req.path === '/anexos' && req.method === 'POST') {
       if (!req.headers['x-arquivo-nome'] || !TIPOS_ANEXO.includes(String(req.headers['content-type'] || '').split(';')[0])) {
-        return res.status(415).json({ erro: 'Envie um arquivo PDF, JPG, PNG ou WEBP.' });
+        return res.status(415).json({ erro: 'Envie um arquivo PDF, XML, JPG, PNG ou WEBP.' });
       }
       return next();
     }
@@ -224,23 +227,51 @@ function criarApp({ cfg, banco, agora }) {
     res.send(conteudo);
   }));
 
+  /** Pacote do contador: ZIP com as despesas do mês, as notas fiscais e um resumo. */
+  app.get('/api/exportar-pacote', exigir('dono'), async (req, res, next) => {
+    const mes = D.mesValido(req.query.mes) ? req.query.mes : D.mesDe(agora());
+    const completo = req.query.completo === '1';
+    try {
+      const p = await acessos.parques.ler(req.usuario.parqueId);
+      const nome = `contador-${p.nome.normalize('NFD').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase()}-${mes}${completo ? '-completo' : '-despesas'}.zip`;
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="${nome}"`);
+      res.setHeader('Cache-Control', 'no-store');
+      const r = await gerarPacote(banco, { parqueId: req.usuario.parqueId, mes, completo, saida: res, agora: agora() });
+      res.end();
+      await registrar(req, 'contador', `Exportou o pacote ${completo ? 'completo' : 'de despesas'} de ${mes} para o contador (${r.despesas} despesas, ${r.arquivos} arquivos).`);
+    } catch (err) {
+      // Depois que o ZIP começou a sair não dá mais para responder com erro: corta o download.
+      if (res.headersSent) {
+        console.error('[pacote]', err);
+        res.destroy(err);
+        return;
+      }
+      res.removeHeader('Content-Disposition');
+      next(err);
+    }
+  });
+
   /* -------------------------------------------------------------- anexos */
 
   app.post('/api/anexos', exigir('dono'), express.raw({ type: TIPOS_ANEXO, limit: '10mb' }), rota(async (req, res) => {
-    const tipo = req.query.tipo === 'evento' ? 'evento' : 'contrato';
+    const tipo = Object.prototype.hasOwnProperty.call(DONOS_ANEXO, req.query.tipo) ? req.query.tipo : 'contrato';
     const donoId = Number(req.query.id);
-    const tabela = tipo === 'evento' ? 'eventos' : 'contratos';
-    const dono = await banco.query(`select id from ${tabela} where parque_id = $1 and id = $2`, [req.usuario.parqueId, donoId]);
-    if (!dono.rows[0]) throw new A.ErroUsuario(tipo === 'evento' ? 'Evento não encontrado.' : 'Contrato não encontrado.', 404);
+    const dono = await banco.query(`select id from ${DONOS_ANEXO[tipo].tabela} where parque_id = $1 and id = $2`, [req.usuario.parqueId, donoId]);
+    if (!dono.rows[0]) throw new A.ErroUsuario(`${DONOS_ANEXO[tipo].nome.replace(/^./, c => c.toUpperCase())} não encontrado.`, 404);
     if (!Buffer.isBuffer(req.body) || !req.body.length) throw new A.ErroUsuario('O arquivo chegou vazio. Tente de novo.');
+    const mime = req.headers['content-type'].split(';')[0];
+    if (mime.endsWith('/xml') && !/^\s*(\uFEFF)?\s*</.test(req.body.subarray(0, 200).toString('utf8'))) {
+      throw new A.ErroUsuario('Esse arquivo não parece um XML de nota fiscal.');
+    }
     let nome = 'arquivo';
     try { nome = decodeURIComponent(String(req.headers['x-arquivo-nome'])); } catch (_) { nome = 'arquivo'; }
     nome = nome.replace(/[\\/:*?"<>|\r\n]/g, '').trim().slice(0, 120) || 'arquivo';
     const anexo = await inserir(banco, 'anexos', {
-      parque_id: req.usuario.parqueId, dono_tipo: tipo, dono_id: donoId, nome, mime: req.headers['content-type'].split(';')[0],
+      parque_id: req.usuario.parqueId, dono_tipo: tipo, dono_id: donoId, nome, mime,
       tamanho: req.body.length, conteudo: req.body, enviado_por: req.usuario.nome, criado_em: agora()
     });
-    await registrar(req, 'anexo', `Anexou "${nome}" ao ${tipo === 'evento' ? 'evento' : 'contrato'}.`);
+    await registrar(req, 'anexo', `Anexou "${nome}" ${tipo === 'conta' ? 'à despesa' : `ao ${DONOS_ANEXO[tipo].nome}`}.`);
     res.json({ ok: true, anexo: { id: anexo.id, nome } });
   }));
 
@@ -248,10 +279,13 @@ function criarApp({ cfg, banco, agora }) {
     const q = await banco.query('select nome, mime, conteudo from anexos where parque_id = $1 and id = $2', [req.usuario.parqueId, Number(req.params.id)]);
     const a = q.rows[0];
     if (!a) throw new A.ErroUsuario('Arquivo não encontrado.', 404);
-    // PDF e imagem abrem direto no navegador; a política de conteúdo das páginas não se aplica a eles.
-    res.removeHeader('Content-Security-Policy');
+    // PDF e imagem abrem direto no navegador. XML sempre baixa, isolado: um XML aberto
+    // como página poderia executar código no endereço do sistema.
+    const xml = a.mime.endsWith('/xml');
+    if (xml) res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+    else res.removeHeader('Content-Security-Policy');
     res.setHeader('Content-Type', a.mime);
-    res.setHeader('Content-Disposition', `${req.query.baixar ? 'attachment' : 'inline'}; filename*=UTF-8''${encodeURIComponent(a.nome)}`);
+    res.setHeader('Content-Disposition', `${req.query.baixar || xml ? 'attachment' : 'inline'}; filename*=UTF-8''${encodeURIComponent(a.nome)}`);
     res.setHeader('Cache-Control', 'private, max-age=300');
     res.send(a.conteudo);
   }));

@@ -86,6 +86,23 @@ async function painel(db, { parqueId, agora, config }) {
     [parqueId, hoje]
   )).rows;
   eventos.filter(e => Number(e.valor) > Number(e.pago)).forEach(e => alertas.push({ nivel: 'info', titulo: `${e.titulo} em ${D.diasEntre(hoje, e.data) || 'hoje'}${D.diasEntre(hoje, e.data) ? ' dias' : ''}`, texto: `Saldo a receber de ${r(Number(e.valor) - Number(e.pago)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`, rota: 'eventos', botao: 'Ver evento' }));
+  // Despesas sem nota fiscal no mês passado (que o contador está fechando) e no atual.
+  const mesAnterior = D.somarMeses(mes, -1);
+  const semNota = (await db.query(
+    `select c.competencia, count(*)::int as n from contas c
+      where c.parque_id = $1 and c.sentido = 'pagar' and c.status <> 'cancelada' and c.documento_tipo <> 'sem_documento'
+        and c.competencia in ($2, $3)
+        and not exists (select 1 from anexos a where a.dono_tipo = 'conta' and a.dono_id = c.id)
+      group by 1`,
+    [parqueId, mesAnterior, mes]
+  )).rows;
+  const pendenteAnterior = semNota.find(x => x.competencia === mesAnterior);
+  const pendenteAtual = semNota.find(x => x.competencia === mes);
+  if (pendenteAnterior || pendenteAtual) {
+    const alvo = pendenteAnterior ? mesAnterior : mes;
+    const n = (pendenteAnterior ? pendenteAnterior.n : 0) + (pendenteAtual ? pendenteAtual.n : 0);
+    alertas.push({ nivel: pendenteAnterior ? 'atencao' : 'info', titulo: `${n === 1 ? '1 despesa' : n + ' despesas'} sem nota fiscal`, texto: pendenteAnterior ? 'Há notas faltando do mês passado. Anexe para o contador fechar o mês.' : 'Anexe as notas para o pacote do contador sair completo.', rota: `financeiro/notas?mes=${alvo}`, botao: 'Anexar notas' });
+  }
   const estoque = (await db.query("select nome, estoque from produtos where parque_id = $1 and ativo and controla_estoque and estoque <= estoque_minimo order by estoque", [parqueId])).rows;
   if (estoque.length) alertas.push({ nivel: 'atencao', titulo: 'Estoque baixo na loja', texto: estoque.slice(0, 3).map(p => `${p.nome} (${p.estoque})`).join(', ') + '.', rota: 'loja', botao: 'Ver a loja' });
   const caucoes = (await db.query("select count(*)::int as n from contratos where parque_id = $1 and status = 'ativo' and caucao_status = 'pendente'", [parqueId])).rows[0].n;

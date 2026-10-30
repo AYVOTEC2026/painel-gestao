@@ -63,8 +63,24 @@ function contador(d) {
     ['extrato', 'Extrato de entradas e saídas', 'Todo dinheiro que entrou e saiu, com a forma de pagamento e a taxa do cartão.'],
     ['alugueis', 'Aluguéis dos boxes', 'Cada aluguel e cobrança do mês, por locatário, com o que foi recebido.']
   ];
-  return `<section class="bloco">
-    <div class="bloco-cabeca"><div><h2>Arquivos de ${esc(mesNome(d.mes))} para o contador</h2><p>Planilhas CSV (separadas por ponto e vírgula) que abrem no Excel e no Google Planilhas. Baixe as quatro e envie.</p></div></div>
+  const n = d.notas;
+  return `<section class="bloco pacote">
+    <div class="pacote-info">
+      <h2>Pacote de ${esc(mesNome(d.mes))} para o contador</h2>
+      <p>Um arquivo ZIP com o mês inteiro: as notas fiscais das despesas, a planilha de despesas, o livro contábil, o resultado, o extrato e os aluguéis. Dentro dele, o arquivo LEIA-ME abre no navegador com o resumo e um link para cada nota.</p>
+      ${n.pendentes ? `<div class="alerta atencao">
+        <div class="alerta-icone">${icone('alerta')}</div>
+        <div><b>${n.pendentes === 1 ? '1 despesa está sem nota' : `${n.pendentes} despesas estão sem nota`}</b><small>Anexe antes de enviar. O pacote sai assim mesmo, com a pendência marcada no resumo.</small></div>
+        <a class="botao pequeno" href="#/financeiro/notas?mes=${esc(d.mes)}">Anexar notas</a>
+      </div>` : n.total ? `<div class="tudo-certo">${icone('certo')}${n.total === 1 ? 'A despesa do mês tem documento.' : `As ${n.total} despesas do mês têm documento.`}</div>` : ''}
+    </div>
+    <div class="pacote-acoes">
+      <a class="botao primario grande" href="${esc(api.pacote(d.mes, true))}" download>${icone('baixar')}Baixar pacote completo</a>
+      <a class="botao" href="${esc(api.pacote(d.mes, false))}" download>Só despesas e notas</a>
+    </div>
+  </section>
+  <section class="bloco">
+    <div class="bloco-cabeca"><div><h2>Planilhas avulsas</h2><p>Os mesmos relatórios do pacote, um de cada vez, em CSV (separado por ponto e vírgula). Abrem no Excel e no Google Planilhas.</p></div></div>
     <div class="downloads">${arquivos.map(([id, nome, texto]) => `
       <a class="download" href="${esc(api.exportar(id, d.mes))}" download>
         <span class="icone">${icone('baixar')}</span><span><b>${esc(nome)}</b><small>${esc(texto)}</small></span>
@@ -76,7 +92,7 @@ export default {
   tela: 'contabilidade',
   params: rota => ({ mes: rota.query.mes }),
   titulo: 'Contabilidade',
-  descricao: 'O resultado de cada mês, os saldos, o livro contábil e as planilhas do contador.',
+  descricao: 'O resultado de cada mês, os saldos, o livro contábil e o pacote do contador com as notas.',
   acoesCabecalho: ctx => seletorMes(ctx.dados.mes, ctx.dados.agora.slice(0, 7), `contabilidade/${abaAtual(ctx.rota, ABAS)}`),
 
   render(ctx) {

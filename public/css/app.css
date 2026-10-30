@@ -186,7 +186,7 @@ p { margin: 0; }
 
 /* --------------------------------------------------------------- formulários */
 
-.campo { display: grid; gap: 6px; min-width: 0; }
+.campo { display: grid; gap: 6px; min-width: 0; align-content: start; }
 .campo > label, .campo > .rotulo { font-size: 13px; font-weight: 700; color: var(--tinta-2); }
 .campo input, .campo select, .campo textarea {
   width: 100%; min-height: 42px; padding: 9px 12px;
@@ -332,6 +332,7 @@ p { margin: 0; }
 .ficha { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 18px; }
 .ficha div span { display: block; font-size: 12.5px; color: var(--nevoa); }
 .ficha div b { display: block; font-size: 14.5px; font-variant-numeric: tabular-nums; }
+.ficha .selo { display: inline-flex; }
 
 /* ---------------------------------------------------------------- caixa */
 
@@ -853,6 +854,82 @@ button.ag-vazio:hover { background: var(--brasa-suave); }
 .fluxo-seta.baixo { margin: 8px 0; }
 .fluxo-seta.baixo svg { transform: rotate(90deg); }
 
+/* ------------------------------------------------------- notas fiscais */
+
+/* O campo de arquivo fica escondido dentro do botão; o foco do teclado aparece no botão. */
+label.botao { cursor: pointer; }
+label.botao:has(input:focus-visible) { box-shadow: var(--foco); }
+.anexos li > span { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+[data-lida]:empty, [data-escolhidos]:empty { display: none; }
+
+.zona-arquivos {
+  display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 12px; align-items: center;
+  padding: 14px 16px; border: 1.5px dashed var(--linha-forte); border-radius: 14px; background: var(--papel);
+  transition: background-color .15s, border-color .15s;
+}
+.zona-arquivos > svg { width: 22px; height: 22px; color: var(--pinho-3); justify-self: center; }
+.zona-arquivos b { display: block; font-size: 14px; }
+.zona-arquivos small { display: block; color: var(--nevoa); font-size: 12.5px; line-height: 1.45; }
+.zona-arquivos.arrastando { border-color: var(--brasa); background: var(--brasa-suave); }
+.zona-arquivos.arrastando > svg { color: var(--brasa-texto); }
+.zona-arquivos.enviando, .linha-nota.enviando { opacity: .55; pointer-events: none; }
+
+.nota-lida { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; padding: 12px 14px; border-radius: 12px; background: var(--ok-suave); color: #0f5a3b; }
+.nota-lida svg { width: 20px; height: 20px; margin-top: 1px; }
+.nota-lida b, .nota-lida span, .nota-lida small { display: block; }
+.nota-lida span { color: var(--tinta); font-size: 13.5px; }
+.nota-lida small { font-size: 12.5px; margin-top: 2px; }
+
+.chip-doc {
+  display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; border: 0;
+  font-size: 12.5px; font-weight: 700; white-space: nowrap; background: #edf1ef; color: var(--tinta-2);
+}
+.chip-doc svg { width: 14px; height: 14px; }
+.chip-doc.completa { background: var(--ok-suave); color: var(--ok); }
+.chip-doc.pendente { background: var(--problema-suave); color: var(--problema); }
+.chip-doc:hover { filter: brightness(.97); }
+
+.notas-topo { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 28px; align-items: center; }
+.notas-progresso > span { display: block; font-size: 13px; font-weight: 600; color: var(--nevoa); }
+.notas-progresso strong { display: block; font-family: var(--fonte-titulo); font-size: 32px; line-height: 1.1; color: var(--pinho); margin-top: 2px; }
+.notas-progresso .medidor { height: 12px; margin: 12px 0 8px; max-width: 520px; }
+.notas-progresso small { display: block; font-size: 13px; color: var(--nevoa); max-width: 60ch; }
+.notas-exportar { display: grid; gap: 8px; min-width: 290px; }
+.notas-exportar small { font-size: 12.5px; color: var(--nevoa); max-width: 36ch; }
+
+.linhas-notas { display: grid; gap: 8px; }
+/* Cada despesa é um alvo: o arquivo solto em cima dela vira o comprovante. */
+.linha-nota {
+  display: grid; grid-template-columns: minmax(0, 1fr) 120px 150px 186px; gap: 16px; align-items: center;
+  padding: 12px 14px 12px 16px; border: 1px solid var(--linha); border-left: 4px solid var(--linha-forte); border-radius: 12px; background: #fff;
+  transition: background-color .15s, border-color .15s;
+}
+.linha-nota.pendente { border-left-color: var(--problema); }
+.linha-nota.completa { border-left-color: var(--ok); }
+.linha-nota-info b { display: block; font-size: 14.5px; }
+.linha-nota-info small, .linha-nota-valor small { display: block; font-size: 12.5px; color: var(--nevoa); }
+.linha-nota-valor { text-align: right; }
+.linha-nota-valor b { font-variant-numeric: tabular-nums; }
+.linha-nota-arquivos { display: flex; flex-wrap: wrap; gap: 6px; }
+.linha-nota-arquivos .nota { font-size: 12.5px; }
+.linha-nota-acoes { display: flex; gap: 6px; justify-content: flex-end; }
+.arquivo-mini { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border-radius: 8px; background: var(--papel); font-size: 12px; font-weight: 800; text-decoration: none; color: var(--tinta-2); }
+.arquivo-mini svg { width: 14px; height: 14px; color: var(--nevoa); }
+.arquivo-mini:hover { background: var(--info-suave); color: var(--info); }
+.soltar-aqui { display: inline-flex; padding: 5px 10px; border: 1.5px dashed var(--linha-forte); border-radius: 8px; font-size: 12.5px; font-weight: 600; color: var(--nevoa); }
+.linha-nota.arrastando { border-color: var(--brasa); background: var(--brasa-suave); }
+.linha-nota.arrastando .soltar-aqui { border-color: var(--brasa); color: var(--brasa-texto); }
+
+/* O pacote do contador é a ação principal da aba: fica na moldura escura, como a lateral. */
+.pacote { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 28px; align-items: center; background: var(--pinho); border-color: var(--pinho); color: #fff; }
+.pacote h2 { font-size: 22px; }
+.pacote-info > p { color: #c6d8d3; font-size: 14px; margin: 6px 0 14px; max-width: 68ch; }
+.pacote-info > p:last-child { margin-bottom: 0; }
+.pacote .alerta { background: #fff; color: var(--tinta); }
+.pacote-acoes { display: grid; gap: 10px; min-width: 260px; }
+.pacote-acoes .botao:not(.primario) { background: transparent; color: #fff; border-color: rgba(255, 255, 255, .35); }
+.pacote-acoes .botao:not(.primario):hover { background: rgba(255, 255, 255, .08); border-color: #fff; }
+
 
 /* -------------------------------------------------------------- responsivo */
 
@@ -936,6 +1013,11 @@ button.ag-vazio:hover { background: var(--brasa-suave); }
 /* ------------------------------------------- complexo: telas estreitas */
 
 @media (max-width: 1180px) {
+  .linha-nota { grid-template-columns: minmax(0, 1fr) auto; gap: 10px 16px; }
+  .linha-nota-info { grid-column: 1; grid-row: 1; }
+  .linha-nota-valor { grid-column: 2; grid-row: 1; }
+  .linha-nota-arquivos { grid-column: 1; grid-row: 2; }
+  .linha-nota-acoes { grid-column: 2; grid-row: 2; }
   .fatos.agora { --n: 2; }
   .fatos.agora .fato:nth-child(3) { border-left: 0; }
   .fatos.agora .fato:nth-child(n+3) { border-top: 1px solid var(--linha); }
@@ -972,4 +1054,18 @@ button.ag-vazio:hover { background: var(--brasa-suave); }
   .abas-linha .seletor-mes { width: 100%; justify-content: space-between; }
   .anexos li { grid-template-columns: 18px minmax(0, 1fr) auto; }
   .anexos li small { display: none; }
+  .zona-arquivos { grid-template-columns: 26px minmax(0, 1fr); }
+  .zona-arquivos .botao { grid-column: 1 / -1; }
+  .notas-topo { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .notas-exportar { min-width: 0; }
+  .notas-exportar .botao { white-space: normal; text-align: center; }
+  .linha-nota { gap: 10px 12px; }
+  .linha-nota-info { grid-column: 1 / -1; }
+  .linha-nota-valor { grid-column: 1; grid-row: 2; text-align: left; }
+  .linha-nota-arquivos { grid-column: 1 / -1; grid-row: 3; }
+  .linha-nota-arquivos:has(> .soltar-aqui) { display: none; }
+  .pacote { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .pacote-acoes { min-width: 0; }
+  .pacote .alerta { grid-template-columns: 34px minmax(0, 1fr); }
+  .pacote .alerta .botao { grid-column: 2; justify-self: start; }
 }

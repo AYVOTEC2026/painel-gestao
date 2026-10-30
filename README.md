@@ -19,12 +19,27 @@ Cada tela tem um botão **Como funciona?** com a explicação daquela tela. A p�
 - **Boxes**: contêineres e quiosques alugados para outras empresas. Contrato com o arquivo assinado anexado (PDF ou foto), aluguel lançado sozinho todo mês com o vencimento combinado, cobranças avulsas (energia do medidor), caução, inadimplência com dias de atraso e cobrança pelo WhatsApp.
 - **Parque infantil**: a venda da pulseira cadastra a criança e o responsável e começa a contar o tempo na entrega. A tela mostra quem precisa sair primeiro; na saída, o excedente é calculado pela regra configurada (tolerância e blocos de minutos).
 - **PDV**: o caixa da recepção. Vende produtos da loja e ingressos de day use, calcula o troco, vende pulseira pelo atalho e fecha o caixa conferindo cada forma de pagamento.
-- **Loja e bilheteria**: cadastro, preços e estoque (com aviso de estoque mínimo). A entrada de mercadoria pode virar despesa de compra.
+- **Loja e bilheteria**: cadastro, preços e estoque (com aviso de estoque mínimo). A entrada de mercadoria vira despesa de compra, com a nota fiscal anexada.
 - **Quadras**: agenda do dia em grade, reserva por toque no horário livre, grupos fixos semanais, recebimento e a lista do que ficou a receber.
 - **Eventos e festas**: orçamento, sinal que confirma a data, pagamentos, saldo, contrato anexado.
-- **Financeiro**: extrato de tudo o que entrou e saiu, contas a pagar e a receber, fechamentos de caixa.
-- **Contabilidade**: resultado do mês por área, saldos, livro contábil e as planilhas do contador.
+- **Financeiro**: extrato de tudo o que entrou e saiu, contas a pagar e a receber, fechamentos de caixa e as notas fiscais das despesas.
+- **Contabilidade**: resultado do mês por área, saldos, livro contábil e o pacote do contador.
 - **Relatórios**: resultado mês a mês, receita de cada área, horários de pico do parque, ocupação das quadras e recebimento dos aluguéis.
+
+## Notas fiscais e o pacote do contador
+
+Cada despesa guarda o documento que a comprova para o imposto de renda: nota fiscal, cupom, recibo, fatura de consumo, guia de imposto ou folha. Quando não há documento, a despesa só é aceita como "sem documento" com o motivo escrito.
+
+- **Lançar pela nota**: ao soltar o XML de uma NF-e (produtos) ou NFS-e (serviços, padrão ABRASF ou nacional) em "Lançar despesa", o sistema preenche fornecedor, CNPJ, número, valor, vencimento e descrição. A leitura acontece no navegador ([public/js/nota-fiscal.js](public/js/nota-fiscal.js)); o arquivo vai junto como anexo.
+- **Anexar depois**: na aba Financeiro → Notas fiscais, cada despesa do mês é uma linha onde se solta o PDF, a foto ou o XML. Aceita vários arquivos por despesa, até 10 MB cada.
+- **Cobrança**: o Painel avisa quando há despesa sem nota, primeiro as do mês passado (o que o contador está fechando).
+- **Pacote do contador**: em Contabilidade → Para o contador, um ZIP do mês com:
+  - `LEIA-ME.html`: resumo para abrir no navegador, com totais por categoria, cada despesa com link para a nota, as pendências e as justificativas;
+  - `despesas-AAAA-MM.csv`: fornecedor, CNPJ, tipo e número do documento, valor, pagamento e o nome de cada arquivo;
+  - `notas/`: os arquivos com nome organizado (`vencimento - categoria - fornecedor - NF número`);
+  - `relatorios/` (no pacote completo): livro contábil, DRE, extrato e aluguéis.
+
+O ZIP é escrito direto na resposta, um arquivo por vez ([server/zip.js](server/zip.js)), sem dependência externa. XML anexado nunca abre como página: sempre baixa, com política de segurança isolada.
 
 ## Rodar no computador
 
@@ -56,7 +71,7 @@ Abra http://localhost:3000. Na tela de entrada há três botões de demonstraç�
 4. **Domínios**: destino na porta **3000**, HTTPS ligado.
 5. **Implantar.** As tabelas são criadas e atualizadas sozinhas a cada subida. Para conferir: `https://<domínio>/api/saude` responde `{"ok":true,"banco":"postgres","versao":"..."}`.
 
-Os anexos (contratos) ficam no próprio Postgres; não precisa de volume.
+Os anexos (contratos, eventos e notas fiscais) ficam no próprio Postgres; não precisa de volume.
 
 ### Variáveis
 
@@ -99,7 +114,8 @@ server/
   demo.js                 gera a demonstração em lote e simula o movimento do parque
   dominio/                regras puras: contabilidade, datas, dinheiro, parque, quadras, aluguéis, perfis
   servicos/               cada ação do sistema numa transação (caixa, parque, quadras, eventos, locações...)
-  consultas/              o que cada tela recebe, e as planilhas do contador
+  consultas/              o que cada tela recebe, as planilhas e o pacote do contador
+  zip.js                  escritor de ZIP em fluxo, para o pacote do contador
   persistencia/           conexão, migrações SQL e acessos (pessoas, sessões, histórico)
 public/
   index.html, css/app.css
@@ -107,7 +123,8 @@ public/
   js/paginas/*.js         uma tela por arquivo
   js/graficos.js          colunas e barras acessíveis, com tabela dos números
   js/ajuda-conteudo.js    textos de ajuda e glossário
-test/                     regras puras e o roteiro completo da API no Postgres
+  js/nota-fiscal.js       lê o XML da NF-e e da NFS-e para preencher a despesa
+test/                     regras puras, leitura de notas, ZIP e o roteiro completo da API no Postgres
 ```
 
 ## Testes
@@ -124,7 +141,8 @@ O protótipo já guarda tudo em tabelas próprias no Postgres (vendas, pulseiras
 
 - **Uma instância só**: o freio de tentativas de login fica na memória do processo. Com mais de uma réplica, movê-lo para o banco.
 - **Sem integração de pagamento**: Pix, cartão e boleto são registrados manualmente. Integração com maquininha, gateway, boleto automático e emissão fiscal ficam para a fase de produção.
-- **Anexos no banco**: bom para contratos (até 10 MB cada). Para muitos arquivos grandes, mover para um armazenamento de arquivos.
+- **Anexos no banco**: bom para contratos e notas (até 10 MB cada). Com anos de notas acumuladas, mover para um armazenamento de arquivos (S3 ou compatível) e manter no banco só a referência.
+- **Notas recebidas por e-mail**: hoje a nota é anexada à mão. Uma evolução natural é buscar as NF-e emitidas contra o CNPJ do complexo direto na SEFAZ (manifestação do destinatário), com certificado digital.
 - **Backup**: ligar as cópias de segurança do Postgres no Easypanel antes da operação real.
 
 ## Versão anterior

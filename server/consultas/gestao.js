@@ -5,7 +5,8 @@ const D = require('../dominio/datas');
 const R = require('../dominio/regras');
 const { TIPOS: TIPOS_EVENTO, STATUS: STATUS_EVENTO } = require('../servicos/eventos');
 const { TIPOS_UNIDADE } = require('../servicos/locacoes');
-const { NOMES_CATEGORIA } = require('../servicos/financeiro');
+const { NOMES_CATEGORIA, DOCUMENTOS } = require('../servicos/financeiro');
+const { despesasDoMes, documentacao } = require('./pacote');
 const { r, hhmm, formas, somasDoLivro, dreDoMes, intervaloDoMes } = require('./comum');
 
 const mesDoParametro = (params, agora) => (D.mesValido(params.mes) ? params.mes : D.mesDe(agora));
@@ -196,10 +197,21 @@ async function financeiro(db, { parqueId, agora, params }) {
     [parqueId]
   )).rows.filter(e => Number(e.valor) > Number(e.pago));
   const caixas = (await db.query('select * from caixas where parque_id = $1 and aberto_em >= $2 and aberto_em < $3 order by aberto_em desc', [parqueId, ini, fim])).rows;
+  const anexosContas = contas.length ? (await db.query(
+    "select id, dono_id, nome, mime, tamanho, criado_em from anexos where parque_id = $1 and dono_tipo = 'conta' and dono_id = any($2::int[]) order by id",
+    [parqueId, contas.map(c => c.id)]
+  )).rows : [];
+  const anexo = a => ({ id: a.id, nome: a.nome, mime: a.mime, tamanho: a.tamanho, criadoEm: a.criado_em });
+  const fiscal = (c, anexos) => ({
+    pessoaDocumento: c.pessoa_documento, documentoTipo: c.documento_tipo, documentoTipoNome: DOCUMENTOS[c.documento_tipo],
+    documentoNumero: c.documento_numero, justificativa: c.justificativa, documentacao: documentacao(c, anexos), anexos: anexos.map(anexo)
+  });
+  const despesas = await despesasDoMes(db, parqueId, mes);
   const conta = c => ({
     id: c.id, sentido: c.sentido, descricao: c.descricao, categoria: c.categoria, categoriaNome: c.sentido === 'pagar' ? NOMES_CATEGORIA[c.categoria] : 'Receita avulsa',
     pessoa: c.pessoa, valor: r(c.valor), vencimento: c.vencimento, competencia: c.competencia, status: c.status, pagoEm: c.pago_em, forma: c.forma,
-    vencida: c.status === 'aberta' && c.vencimento < hoje
+    vencida: c.status === 'aberta' && c.vencimento < hoje,
+    ...fiscal(c, anexosContas.filter(a => a.dono_id === c.id))
   });
   return {
     agora,
@@ -220,10 +232,22 @@ async function financeiro(db, { parqueId, agora, params }) {
       contado: r(Object.values(c.contado || {}).reduce((t, v) => t + Number(v), 0)),
       diferenca: r(c.diferenca), observacao: c.observacao
     })),
+    despesas: despesas.map(c => ({ ...conta(c), ...fiscal(c, c.anexos) })),
+    notas: resumoDasNotas(despesas),
     categorias: NOMES_CATEGORIA,
+    documentos: DOCUMENTOS,
     formas: formas()
   };
 }
+
+/** Quantas despesas do mês já têm documento: alimenta a aba de notas e o pacote do contador. */
+const resumoDasNotas = despesas => ({
+  total: despesas.length,
+  completas: despesas.filter(c => c.documentacao === 'completa').length,
+  pendentes: despesas.filter(c => c.documentacao === 'pendente').length,
+  semDocumento: despesas.filter(c => c.documentacao === 'sem_documento').length,
+  valorPendente: r(despesas.filter(c => c.documentacao === 'pendente').reduce((t, c) => t + Number(c.valor), 0))
+});
 
 /* ---------------------------------------------------------- contabilidade */
 
@@ -246,7 +270,8 @@ async function contabilidade(db, { parqueId, agora, params }) {
     saldos,
     livro: livro.map(l => ({ em: l.em, conta: (C.CONTAS[l.conta] || {}).nome || l.conta, historico: l.historico, debito: r(l.debito), credito: r(l.credito) })),
     totais: { lancamentos: totais.n, debitos: r(totais.d), creditos: r(totais.c) },
-    equilibrado: Number(geral.saldo) === 0
+    equilibrado: Number(geral.saldo) === 0,
+    notas: resumoDasNotas(await despesasDoMes(db, parqueId, mes))
   };
 }
 

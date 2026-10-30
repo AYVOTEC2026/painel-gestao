@@ -7,6 +7,7 @@ const { criarApp } = require('../server/app');
 const { lerConfig } = require('../server/config');
 const { semearDemo } = require('../server/demo');
 const D = require('../server/dominio/datas');
+const { lerZip } = require('./ler-zip');
 
 const URL_TESTE = process.env.TEST_DATABASE_URL;
 
@@ -39,7 +40,8 @@ test('API do complexo no Postgres', { skip: !URL_TESTE && 'defina TEST_DATABASE_
       const set = res.headers.get('set-cookie');
       if (set) cookie = set.split(';')[0];
       const tipo = res.headers.get('content-type') || '';
-      return { status: res.status, corpo: tipo.includes('json') ? await res.json() : Buffer.from(await res.arrayBuffer()).toString('utf8'), tipo };
+      const bruto = tipo.includes('json') ? null : Buffer.from(await res.arrayBuffer());
+      return { status: res.status, corpo: bruto ? (extra.binario ? bruto : bruto.toString('utf8')) : await res.json(), tipo, cabecalhos: res.headers };
     }
     chamar.cookie = () => cookie;
     return chamar;
@@ -154,6 +156,54 @@ test('API do complexo no Postgres', { skip: !URL_TESTE && 'defina TEST_DATABASE_
     assert.ok(fin.movimentos.some(m => m.descricao === 'Troca de rede da quadra 2' && m.sentido === 'saida'));
     assert.ok(fin.totais.entradas > 0 && fin.totais.saidas > 0);
 
+    // Notas fiscais: a demonstração deixa duas despesas sem nota e o painel cobra.
+    assert.ok(painel.alertas.some(a => /despesas? sem nota fiscal/.test(a.titulo) && a.rota === 'financeiro/notas?mes=2026-09'), 'nota faltando do mês passado');
+    const compra = await acao(dona, 'nova-conta', { sentido: 'pagar', categoria: 'compras', descricao: 'Raquetes para a loja', pessoa: 'Beach Pro', pessoaDocumento: '12.345.678/0001-95', documentoTipo: 'nota_fiscal', documentoNumero: '4821', valor: '3240', vencimento: D.diaDe(relogio) });
+    assert.strictEqual(compra.status, 200, JSON.stringify(compra.corpo));
+    const contaId = compra.corpo.resultado.contaId;
+    const semNota = (await dona('GET', '/api/tela/financeiro')).corpo;
+    assert.strictEqual(semNota.despesas.find(c => c.id === contaId).documentacao, 'pendente');
+    const anexar = (nome, mime, bruto) => dona('POST', `/api/anexos?tipo=conta&id=${contaId}`, undefined, { bruto, headers: { 'Content-Type': mime, 'X-Arquivo-Nome': encodeURIComponent(nome) } });
+    assert.strictEqual((await anexar('DANFE 4821.pdf', 'application/pdf', Buffer.from('%PDF-1.4\n%danfe\n'))).status, 200);
+    const xmlNota = await anexar('NFe 4821.xml', 'application/xml', '<?xml version="1.0"?><nfeProc><NFe><infNFe Id="NFe1"><ide><nNF>4821</nNF></ide></infNFe></NFe></nfeProc>');
+    assert.strictEqual(xmlNota.status, 200, JSON.stringify(xmlNota.corpo));
+    assert.strictEqual((await anexar('nota.xml', 'application/xml', 'MZ não é XML')).status, 400, 'XML falso é recusado');
+    assert.strictEqual((await recepcao('POST', `/api/anexos?tipo=conta&id=${contaId}`, undefined, { bruto: 'x', headers: { 'Content-Type': 'application/pdf', 'X-Arquivo-Nome': 'a.pdf' } })).status, 403);
+    const xmlBaixado = await dona('GET', `/api/anexos/${xmlNota.corpo.anexo.id}`);
+    assert.match(xmlBaixado.cabecalhos.get('content-disposition'), /^attachment/, 'XML sempre baixa, nunca abre como página');
+    assert.match(xmlBaixado.cabecalhos.get('content-security-policy'), /sandbox/);
+    const comNota = (await dona('GET', '/api/tela/financeiro')).corpo;
+    assert.strictEqual(comNota.despesas.find(c => c.id === contaId).documentacao, 'completa');
+    assert.strictEqual(comNota.despesas.find(c => c.id === contaId).anexos.length, 2);
+    assert.strictEqual(comNota.notas.pendentes, semNota.notas.pendentes - 1);
+
+    // Sem documento só com o motivo, que vai para o contador.
+    const portao = (await acao(dona, 'nova-conta', { sentido: 'pagar', categoria: 'manutencao', descricao: 'Conserto do portão', pessoa: 'Seu Zé', valor: '150', vencimento: D.diaDe(relogio) })).corpo.resultado.contaId;
+    assert.strictEqual((await acao(dona, 'dados-fiscais', { contaId: portao, documentoTipo: 'sem_documento' })).status, 400);
+    assert.strictEqual((await acao(dona, 'dados-fiscais', { contaId: portao, documentoTipo: 'sem_documento', justificativa: 'Autônomo sem recibo' })).status, 200);
+    assert.strictEqual((await dona('GET', '/api/tela/financeiro')).corpo.despesas.find(c => c.id === portao).documentacao, 'sem_documento');
+
+    // Pacote do contador: ZIP válido, com resumo, planilha, relatórios e as notas com nome organizado.
+    const pacote = await dona('GET', '/api/exportar-pacote?mes=2026-10&completo=1', undefined, { binario: true });
+    assert.strictEqual(pacote.status, 200);
+    assert.strictEqual(pacote.tipo, 'application/zip');
+    assert.match(pacote.cabecalhos.get('content-disposition'), /contador-pepama-2026-10-completo\.zip/);
+    const zip = lerZip(pacote.corpo);
+    const nomes = [...zip.keys()];
+    const pasta = 'contador Pepama 2026-10/';
+    assert.ok(nomes.every(n => n.startsWith(pasta)), 'tudo dentro de uma pasta só');
+    for (const n of ['LEIA-ME.html', 'despesas-2026-10.csv', 'relatorios/livro-contabil-2026-10.csv', 'relatorios/resultado-dre-2026-10.csv']) assert.ok(zip.has(pasta + n), n);
+    const notasNoZip = nomes.filter(n => n.includes('/notas/') && n.includes('Beach Pro - NF 4821'));
+    assert.deepStrictEqual(notasNoZip.map(n => n.split('.').pop()).sort(), ['pdf', 'xml']);
+    const linhaCsv = zip.get(pasta + 'despesas-2026-10.csv').dados.toString('utf8').split('\r\n').find(l => l.includes('Raquetes para a loja'));
+    assert.match(linhaCsv, /12\.345\.678\/0001-95;Raquetes para a loja;Compras de mercadoria;Nota fiscal \(NF-e ou NFS-e\);4821;3240,00/);
+    const leiaMe = zip.get(pasta + 'LEIA-ME.html').dados.toString('utf8');
+    assert.match(leiaMe, /Autônomo sem recibo/);
+    assert.match(leiaMe, /href="notas\/[^"]*Beach%20Pro%20-%20NF%204821\.pdf"/, 'link relativo para abrir a nota');
+    const soDespesas = lerZip((await dona('GET', '/api/exportar-pacote?mes=2026-10', undefined, { binario: true })).corpo);
+    assert.ok(![...soDespesas.keys()].some(n => n.includes('/relatorios/')), 'pacote só de despesas não leva relatórios');
+    assert.strictEqual((await recepcao('GET', '/api/exportar-pacote?mes=2026-10')).status, 403);
+
     // Fechamento do caixa com R$ 10 a menos no dinheiro.
     const sessao = (await recepcao('GET', '/api/tela/pdv')).corpo.caixa;
     const contado = Object.assign({}, sessao.esperado, { dinheiro: sessao.esperado.dinheiro - 10 });
@@ -180,6 +230,7 @@ test('API do complexo no Postgres', { skip: !URL_TESTE && 'defina TEST_DATABASE_
     const equipe = (await dona('GET', '/api/equipe')).corpo;
     assert.ok(equipe.atividade.some(a => a.usuarioNome === 'Bianca Lima' && /saída de Ana Teste/.test(a.resumo)));
     assert.ok(equipe.atividade.some(a => a.usuarioNome === 'Rafael Souza' && /Cancelou a venda/.test(a.resumo)));
+    assert.ok(equipe.atividade.some(a => /Exportou o pacote completo de 2026-10 para o contador/.test(a.resumo)));
 
     // Outro site não altera nada, mesmo com o cookie.
     const forasteiro = await fetch(base + '/api/acao/abrir-caixa', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://malicioso.example', Cookie: recepcao.cookie() }, body: '{}' });

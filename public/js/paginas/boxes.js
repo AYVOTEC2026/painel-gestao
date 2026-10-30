@@ -200,7 +200,7 @@ function painelDoBox(ctx, unidadeId) {
       <div class="separador"></div>
       <h3 class="sub-titulo">Contrato assinado</h3>
       ${c.anexos.length ? `<ul class="anexos">${c.anexos.map(a => `<li>${icone('anexo')}<a href="${esc(api.anexo(a.id))}" target="_blank" rel="noopener">${esc(a.nome)}</a><small>${esc(tamanhoArquivo(a.tamanho))}, ${esc(dataCurta(a.criadoEm))}</small><button type="button" class="botao fantasma pequeno" data-b="remover-anexo" data-id="${a.id}" aria-label="Remover ${esc(a.nome)}">${icone('lixeira')}</button></li>`).join('')}</ul>` : '<p class="nota">Nenhum arquivo anexado ainda.</p>'}
-      <label class="botao pequeno anexar">${icone('anexo')}Anexar arquivo<input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" data-b="anexar" hidden></label>
+      <label class="botao pequeno anexar">${icone('anexo')}Anexar arquivo<input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" data-b="anexar" class="so-leitor"></label>
       <p class="nota">PDF ou foto do contrato, até 10 MB.</p>
 
       ${c.caucao ? `<div class="separador"></div><h3 class="sub-titulo">Caução de ${esc(dinheiro(c.caucao))}</h3>

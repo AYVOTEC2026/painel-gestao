@@ -20,6 +20,8 @@ export const GLOSSARIO = [
   ['Receita', 'Tudo o que o complexo ganha: aluguéis, pulseiras, loja, day use, quadras, eventos.'],
   ['Despesa', 'Tudo o que o complexo gasta: energia, água, folha, manutenção, compras, taxas de cartão.'],
   ['Resultado', 'Receitas menos despesas. É o lucro (ou prejuízo) do mês.'],
+  ['Nota fiscal', 'O documento que prova a despesa para o imposto de renda. Chega em PDF (o DANFE, para produtos) e em XML (o arquivo oficial). Anexe os dois quando tiver.'],
+  ['Pacote do contador', 'Arquivo ZIP de um mês com as notas fiscais, a planilha de despesas e os relatórios, mais um resumo que abre no navegador.'],
   ['Competência', 'O mês a que um valor pertence, mesmo que seja pago depois. O aluguel de outubro é de outubro, ainda que pago em novembro.']
 ];
 
@@ -34,9 +36,10 @@ export const ROTINA_DIA = [
 
 export const ROTINA_MES = [
   ['Acompanhe os aluguéis', 'Em Boxes, aba Cobranças: quem pagou e quem está em atraso. Cobre pelo WhatsApp direto do sistema.'],
-  ['Lance as despesas', 'Em Financeiro: energia, água, folha, manutenção. Marque como paga quando pagar.'],
+  ['Lance as despesas com a nota', 'Em Financeiro: solte o XML ou o PDF da nota e o sistema preenche fornecedor, CNPJ, número e valor. Marque como paga quando pagar.'],
+  ['Feche as notas do mês', 'Em Financeiro, aba Notas fiscais: anexe o que faltar. O Painel avisa quando alguma despesa está sem nota.'],
   ['Confira o resultado', 'Em Contabilidade: quanto entrou, quanto saiu e o lucro de cada área.'],
-  ['Envie os arquivos ao contador', 'Em Contabilidade, aba Para o contador: quatro planilhas do mês.']
+  ['Envie o pacote ao contador', 'Em Contabilidade, aba Para o contador: um arquivo ZIP com as notas, as planilhas e um resumo do mês.']
 ];
 
 export const PERGUNTAS = [
@@ -47,6 +50,9 @@ export const PERGUNTAS = [
   ['Onde guardo o contrato assinado?', 'Em Boxes, toque no box e use "Anexar arquivo". Aceita PDF ou foto (até 10 MB). O arquivo fica no sistema, junto do contrato.'],
   ['Como funciona o grupo fixo da quadra?', 'Ao reservar, escolha repetir toda semana. O sistema cria todas as datas de uma vez e avisa se algum horário já estiver ocupado.'],
   ['Por que um evento virou "confirmado" sozinho?', 'Porque recebeu o primeiro pagamento (o sinal). Depois da festa, marque como realizado; o saldo que faltar continua aparecendo para receber.'],
+  ['Como mando as notas para o contador?', 'Em Contabilidade, aba Para o contador, baixe o pacote do mês. É um arquivo ZIP: mande por e-mail ou WhatsApp. Dentro, as notas vêm com nome organizado (data, categoria e fornecedor), e o arquivo LEIA-ME mostra o resumo com um link para cada nota.'],
+  ['Uma despesa não tem nota. E agora?', 'Peça a nota ao fornecedor: quase sempre ele emite. Se não houver mesmo (um autônomo sem recibo, por exemplo), abra a despesa e escolha "Sem documento" com o motivo. O contador vê a justificativa no pacote.'],
+  ['PDF ou XML da nota?', 'Os dois, quando tiver. O XML é o arquivo oficial da nota e é o que o contador importa no sistema dele; o PDF é a versão para ler. Com o XML, o sistema também preenche a despesa sozinho.'],
   ['Os dados ficam salvos onde?', 'Num banco de dados no servidor, não no aparelho. Dá para entrar de qualquer computador ou celular e ver as mesmas informações.']
 ];
 
@@ -147,10 +153,11 @@ export const AJUDA = {
       ${lista([
         '<b>Entradas</b> nascem sozinhas das vendas, pulseiras, reservas, aluguéis e eventos.',
         '<b>Despesas</b> você lança: energia, água, folha, manutenção. Pode lançar já paga ou para pagar no vencimento.',
+        '<b>Notas fiscais</b>: cada despesa guarda a nota (PDF, foto ou XML). Solte o arquivo em cima da despesa. Com o XML, a despesa se preenche sozinha.',
         '<b>A receber</b> junta aluguéis em aberto, saldos de eventos e outras receitas.',
         '<b>Caixas</b> mostra cada fechamento do dia e as diferenças.'
       ])}
-      ${termos(['Receita', 'Despesa', 'Competência'])}`
+      ${termos(['Receita', 'Despesa', 'Competência', 'Nota fiscal'])}`
   },
   contabilidade: {
     titulo: 'Contabilidade',
@@ -159,9 +166,9 @@ export const AJUDA = {
         '<b>Resultado</b>: quanto cada área rendeu no mês, as despesas e o lucro.',
         '<b>Saldos</b>: quanto há em caixa, no banco, em cartões a receber, aluguéis a receber, contas a pagar e cauções.',
         '<b>Livro contábil</b>: cada operação gera um débito e um crédito iguais. É o que o contador confere.',
-        '<b>Para o contador</b>: as planilhas do mês, prontas para enviar.'
+        '<b>Para o contador</b>: o pacote do mês em ZIP, com as notas fiscais, a planilha de despesas e os relatórios, pronto para enviar.'
       ])}
-      ${termos(['Resultado', 'Competência'])}`
+      ${termos(['Resultado', 'Competência', 'Pacote do contador'])}`
   },
   relatorios: {
     titulo: 'Relatórios',

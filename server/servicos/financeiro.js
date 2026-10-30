@@ -5,6 +5,30 @@ const C = require('../dominio/contabil');
 const D = require('../dominio/datas');
 const { texto, textoObrigatorio, valorEmCentavos, data, formatar, ErroUsuario } = require('./contexto');
 
+/** O que comprova cada despesa para o contador. */
+const DOCUMENTOS = {
+  nota_fiscal: 'Nota fiscal (NF-e ou NFS-e)',
+  cupom_fiscal: 'Cupom fiscal',
+  recibo: 'Recibo',
+  fatura: 'Fatura de consumo (energia, água, internet)',
+  guia: 'Guia de imposto (DAS, DARF, GPS)',
+  folha: 'Folha de pagamento',
+  sem_documento: 'Sem documento'
+};
+
+/** Tipo de documento, número, CNPJ do fornecedor e justificativa quando não há documento. */
+function lerDadosFiscais(d, atual = {}) {
+  const tipo = DOCUMENTOS[d.documentoTipo] ? d.documentoTipo : atual.documento_tipo || 'nota_fiscal';
+  const justificativa = texto(d.justificativa === undefined ? atual.justificativa : d.justificativa, 300);
+  if (tipo === 'sem_documento' && justificativa.length < 3) throw new ErroUsuario('Explique por que esta despesa não tem documento. O contador vai precisar.');
+  return {
+    documento_tipo: tipo,
+    documento_numero: texto(d.documentoNumero === undefined ? atual.documento_numero : d.documentoNumero, 60),
+    pessoa_documento: texto(d.pessoaDocumento === undefined ? atual.pessoa_documento : d.pessoaDocumento, 30),
+    justificativa: tipo === 'sem_documento' ? justificativa : ''
+  };
+}
+
 const NOMES_CATEGORIA = {
   energia: 'Energia', agua: 'Água', folha: 'Folha e encargos', manutencao: 'Manutenção', limpeza: 'Limpeza e segurança',
   marketing: 'Marketing', impostos: 'Impostos e taxas', compras: 'Compras de mercadoria', outras: 'Outras'
@@ -18,7 +42,8 @@ async function criarConta(ctx, d) {
   const competencia = D.mesValido(d.competencia) ? d.competencia : D.mesDe(vencimento);
   const conta = await inserir(ctx.tx, 'contas', {
     parque_id: ctx.parqueId, sentido, descricao: textoObrigatorio(d.descricao, 'a descrição'), categoria,
-    pessoa: texto(d.pessoa, 120), valor, vencimento, competencia, criado_em: ctx.agora, criado_por: ctx.quem
+    pessoa: texto(d.pessoa, 120), valor, vencimento, competencia, criado_em: ctx.agora, criado_por: ctx.quem,
+    ...lerDadosFiscais(d)
   });
   const linhas = sentido === 'pagar'
     ? C.reconhecimento(C.CATEGORIAS_DESPESA[categoria], 'contas_pagar', valor, conta.descricao)
@@ -64,6 +89,19 @@ const ACOES = {
     }
   },
 
+  'dados-fiscais': {
+    papeis: ['dono'],
+    async executar(ctx, d) {
+      const conta = await contaDoParque(ctx, d.contaId);
+      if (conta.status === 'cancelada') throw new ErroUsuario('Essa conta foi cancelada.');
+      const campos = lerDadosFiscais(d, conta);
+      if (d.pessoa !== undefined) campos.pessoa = texto(d.pessoa, 120);
+      await atualizar(ctx.tx, 'contas', conta.id, campos);
+      const numero = campos.documento_numero ? ` nº ${campos.documento_numero}` : '';
+      return { resumo: `Atualizou o documento de "${conta.descricao}": ${DOCUMENTOS[campos.documento_tipo].replace(/ \(.*\)$/, '').toLowerCase()}${numero}.` };
+    }
+  },
+
   'cancelar-conta': {
     papeis: ['dono'],
     async executar(ctx, d) {
@@ -76,4 +114,4 @@ const ACOES = {
   }
 };
 
-module.exports = { ACOES, criarConta, baixarConta, NOMES_CATEGORIA };
+module.exports = { ACOES, criarConta, baixarConta, NOMES_CATEGORIA, DOCUMENTOS };

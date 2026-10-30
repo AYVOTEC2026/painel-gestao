@@ -29,6 +29,14 @@ export async function chamar(metodo, caminho, corpo) {
   return responder(res);
 }
 
+/** Tipo do arquivo para o servidor. XML às vezes chega sem tipo ou como text/xml. */
+export function tipoDoArquivo(arquivo) {
+  const ext = (arquivo.name.split('.').pop() || '').toLowerCase();
+  if (ext === 'xml') return 'application/xml';
+  if (arquivo.type) return arquivo.type;
+  return { pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' }[ext] || '';
+}
+
 const consulta = params => {
   const q = new URLSearchParams(Object.entries(params || {}).filter(([, v]) => v != null && v !== ''));
   return q.toString() ? `?${q}` : '';
@@ -49,6 +57,7 @@ export const api = {
   operacaoReal: dados => chamar('POST', '/api/operacao-real', dados),
   carregarDemo: () => chamar('POST', '/api/carregar-demo', {}),
   exportar: (arquivo, mes) => `/api/exportar/${arquivo}?mes=${encodeURIComponent(mes)}`,
+  pacote: (mes, completo) => `/api/exportar-pacote?mes=${encodeURIComponent(mes)}${completo ? '&completo=1' : ''}`,
   anexo: (id, baixar) => `/api/anexos/${id}${baixar ? '?baixar=1' : ''}`,
   removerAnexo: id => chamar('DELETE', `/api/anexos/${id}`),
   async enviarAnexo(tipo, id, arquivo) {
@@ -57,7 +66,7 @@ export const api = {
       res = await fetch(`/api/anexos?tipo=${tipo}&id=${id}`, {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { 'Content-Type': arquivo.type, 'X-Arquivo-Nome': encodeURIComponent(arquivo.name) },
+        headers: { 'Content-Type': tipoDoArquivo(arquivo), 'X-Arquivo-Nome': encodeURIComponent(arquivo.name) },
         body: arquivo
       });
     } catch (_) {

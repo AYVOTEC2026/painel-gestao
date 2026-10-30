@@ -184,6 +184,14 @@ function desenharPagina() {
       <div id="corpoPagina">${pagina.render(ctx)}</div>
     </div>`;
   window.scrollTo(0, rolagem);
+  // No celular a faixa de abas rola de lado: a aba aberta não pode ficar escondida na borda.
+  const abaAberta = conteudo.querySelector('.abas .aba.ativa');
+  if (abaAberta) {
+    const faixa = abaAberta.parentElement;
+    const a = abaAberta.getBoundingClientRect();
+    const f = faixa.getBoundingClientRect();
+    if (a.right > f.right) faixa.scrollLeft = a.left - f.left - (f.width - a.width) / 2;
+  }
   if (ajudaTela) document.getElementById('comoFunciona').addEventListener('click', () => abrirModal({ titulo: ajudaTela.titulo, lateral: true, cancelar: 'Entendi', corpo: `<div class="ajuda-texto">${ajudaTela.html}</div>` }));
   limparPagina = pagina.ligar ? pagina.ligar(conteudo, ctx) : null;
 }
