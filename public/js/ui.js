@@ -118,6 +118,17 @@ export function botaoMostrarTudo(total) {
   return total > LINHAS_VISIVEIS ? `<button type="button" class="botao fantasma pequeno mostrar-tudo" data-mostrar-tudo>Mostrar todas as ${total} linhas</button>` : '';
 }
 
+// Histórico que não precisa ficar à vista: vira uma barra com título e resumo, aberta num toque.
+// Lembra se estava aberto, porque as telas se redesenham a cada ação.
+const recolhiveisAbertos = new Set();
+export function marcarRecolhivel(chave, aberto) { if (aberto) recolhiveisAbertos.add(chave); else recolhiveisAbertos.delete(chave); }
+export function recolhivel({ chave, titulo, resumo = '', corpo }) {
+  return `<details class="bloco recolhivel" data-recolhe="${esc(chave)}" ${recolhiveisAbertos.has(chave) ? 'open' : ''}>
+    <summary><span><b>${esc(titulo)}</b>${resumo ? `<small>${esc(resumo)}</small>` : ''}</span></summary>
+    <div class="recolhivel-corpo">${corpo}</div>
+  </details>`;
+}
+
 // Selo da marca do cliente (Pepama Food Park), usado no menu lateral.
 export const marcaSelo = '<img src="/marca/pepama-icone.png" alt="">';
 

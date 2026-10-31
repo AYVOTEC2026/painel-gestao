@@ -1,4 +1,4 @@
-import { esc, icone, dinheiro, hora, duracao, plural, telefone, vazio, avisar, abrirModal, campo } from '../ui.js';
+import { esc, icone, dinheiro, hora, duracao, plural, telefone, vazio, avisar, abrirModal, campo, classeLinha, botaoMostrarTudo, recolhivel } from '../ui.js';
 import { zap, conversa, primeiroNome } from '../mensagens.js';
 import { campoForma, nomeForma, abrirCaixa, avisoCaixaFechado } from './comum.js';
 
@@ -158,19 +158,17 @@ export default {
           : vazio({ icone: 'balanco', titulo: 'Nenhuma criança no parque agora', texto: 'Ao vender uma pulseira, a criança aparece aqui com o tempo contando.', botao: '<button type="button" class="botao primario" data-p="nova">Nova entrada</button>' })}
       </section>
 
-      <section class="bloco" style="margin-top:22px">
-        <div class="bloco-cabeca"><div><h2>Saídas de hoje</h2><p>${plural(saidas.filter(e => e.status === 'saiu').length, 'criança já saiu', 'crianças já saíram')}.</p></div></div>
+      ${recolhivel({ chave: 'parque-saidas', titulo: 'Saídas de hoje', resumo: `${plural(saidas.filter(e => e.status === 'saiu').length, 'criança já saiu', 'crianças já saíram')}.`, corpo: `
         ${saidas.length ? `<div class="tabela-envolve"><table class="tabela">
           <thead><tr><th>Criança</th><th>Entrada</th><th>Saída</th><th class="so-largo">Tempo</th><th>Ficou</th><th class="num">Excedente</th></tr></thead>
-          <tbody>${saidas.map(e => `<tr class="${e.status === 'cancelada' ? 'apagada' : ''}">
+          <tbody>${saidas.map((e, i) => `<tr class="${e.status === 'cancelada' ? 'apagada' : ''} ${classeLinha(i)}">
             <td><b>${esc(e.crianca)}</b><small>${esc(e.responsavel)}</small></td>
             <td class="num">${esc(hora(e.entrada))}</td>
             <td class="num">${e.saida ? esc(hora(e.saida)) : ''}</td>
             <td class="so-largo">${esc(e.plano)}</td>
             <td class="num">${e.status === 'cancelada' ? 'Cancelada' : esc(duracao(Math.round((lerLocal(e.saida) - lerLocal(e.entrada)) / 60000)))}</td>
             <td class="num">${e.excedenteValor ? esc(dinheiro(e.excedenteValor)) : '—'}</td>
-          </tr>`).join('')}</tbody></table></div>` : '<p class="nota">Ninguém saiu ainda hoje.</p>'}
-      </section>`;
+          </tr>`).join('')}</tbody></table></div>${botaoMostrarTudo(saidas.length)}` : '<p class="nota">Ninguém saiu ainda hoje.</p>'}` })}`;
   },
 
   ligar(raiz, ctx) {

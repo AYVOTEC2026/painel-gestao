@@ -1,4 +1,4 @@
-import { esc, icone, dinheiro, hora, dataCurta, plural, vazio, avisar, abrirModal, confirmar, campo, campoDinheiro, dica, classeLinha, botaoMostrarTudo } from '../ui.js';
+import { esc, icone, dinheiro, hora, dataCurta, plural, vazio, avisar, abrirModal, confirmar, campo, campoDinheiro, dica, classeLinha, botaoMostrarTudo, recolhivel } from '../ui.js';
 import { abrirEntrada } from './parque.js';
 import { abrirCaixa, nomeForma, NOMES_AREA, PERIODOS, tempoDoAluguel, htmlAlugados } from './comum.js';
 
@@ -133,8 +133,7 @@ function htmlMovimento(d) {
   const c = d.caixa;
   if (!c) return '';
   if (!c.movimentos.length) return `<section class="bloco" style="margin-top:24px"><div class="bloco-cabeca"><div><h2>Movimento deste caixa</h2><p>Vendas, pulseiras e reservas recebidas aparecem aqui.</p></div></div></section>`;
-  return `<section class="bloco" style="margin-top:24px">
-    <div class="bloco-cabeca"><div><h2>Movimento deste caixa</h2><p>Tudo o que entrou e saiu desde a abertura, de todas as áreas.</p></div></div>
+  return recolhivel({ chave: 'pdv-movimento', titulo: 'Movimento deste caixa', resumo: `${plural(c.movimentos.length, 'lançamento', 'lançamentos')} desde a abertura, de todas as áreas.`, corpo: `
     <div class="tabela-envolve"><table class="tabela">
       <thead><tr><th>Hora</th><th>O quê</th><th class="so-largo">Área</th><th>Forma</th><th class="num">Valor</th><th></th></tr></thead>
       <tbody>${c.movimentos.map((m, i) => `<tr class="${m.cancelada && m.sentido === 'entrada' ? 'apagada' : ''} ${classeLinha(i)}">
@@ -146,14 +145,12 @@ function htmlMovimento(d) {
         <td class="acoes">${m.cancelavel ? `<button class="botao pequeno perigo" data-a="cancelar" data-id="${m.origemId}" data-desc="${esc(m.descricao)}" data-valor="${m.valor}">Cancelar</button>` : m.cancelada && m.sentido === 'entrada' ? '<span class="selo problema">Cancelada</span>' : ''}</td>
       </tr>`).join('')}</tbody>
     </table></div>
-    ${botaoMostrarTudo(c.movimentos.length)}
-  </section>`;
+    ${botaoMostrarTudo(c.movimentos.length)}` });
 }
 
 function htmlFechamentos(d) {
   if (!d.fechamentos.length) return '';
-  return `<section class="bloco" style="margin-top:18px">
-    <div class="bloco-cabeca"><div><h2>Últimos fechamentos</h2><p>Diferença é o que foi contado menos o que o sistema esperava.</p></div></div>
+  return recolhivel({ chave: 'pdv-fechamentos', titulo: 'Últimos fechamentos', resumo: 'Diferença é o que foi contado menos o que o sistema esperava.', corpo: `
     <div class="tabela-envolve"><table class="tabela">
       <thead><tr><th>Dia</th><th class="so-largo">Fechado por</th><th class="num so-largo">Esperado</th><th class="num">Contado</th><th class="num">Diferença</th></tr></thead>
       <tbody>${d.fechamentos.map(f => `<tr>
@@ -161,8 +158,7 @@ function htmlFechamentos(d) {
         <td class="num so-largo">${esc(dinheiro(f.esperado))}</td><td class="num">${esc(dinheiro(f.contado))}</td>
         <td class="num ${f.diferenca === 0 ? 'dif-zero' : f.diferenca < 0 ? 'dif-neg' : 'dif-pos'}">${f.diferenca === 0 ? 'Sem diferença' : esc(dinheiro(f.diferenca))}</td>
       </tr>`).join('')}</tbody>
-    </table></div>
-  </section>`;
+    </table></div>` });
 }
 
 function htmlBarraMovel() {

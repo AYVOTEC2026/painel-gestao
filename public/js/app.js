@@ -1,5 +1,5 @@
 import { api, quandoPerderSessao } from './api.js';
-import { esc, icone, marcaSelo, iniciais, avisar, abrirModal, temModalAberto, fecharTodosModais } from './ui.js';
+import { esc, icone, marcaSelo, marcarRecolhivel, iniciais, avisar, abrirModal, temModalAberto, fecharTodosModais } from './ui.js';
 import { telaDeEntrada } from './entrada.js';
 import { usarMensagens } from './mensagens.js';
 import { AJUDA } from './ajuda-conteudo.js';
@@ -180,10 +180,11 @@ function desenharTudo() {
   shell.addEventListener('click', e => {
     const mais = e.target.closest('[data-mostrar-tudo]');
     if (!mais) return;
-    mais.closest('section').querySelectorAll('.linha-extra').forEach(tr => tr.classList.remove('oculto'));
+    mais.closest('section, details').querySelectorAll('.linha-extra').forEach(tr => tr.classList.remove('oculto'));
     mais.remove();
   });
   shell.addEventListener('pointerdown', e => { if (shell.classList.contains('menu-aberto') && !e.target.closest('.lateral')) shell.classList.remove('menu-aberto'); });
+  shell.addEventListener('toggle', e => { const d = e.target; if (d.matches && d.matches('details[data-recolhe]')) marcarRecolhivel(d.dataset.recolhe, d.open); }, true);
   ligarDicas(document.body);
   desenharPagina();
 }

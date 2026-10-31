@@ -18,6 +18,8 @@ function htmlAgenda(d) {
   const lista = slots(d.horario);
   const abre = paraMin(d.horario.abre);
   const linha = m => Math.floor((m - abre) / 30) + 2;
+  // Hoje, a agenda abre rolada até uma hora antes de agora (cada meia hora tem 24px).
+  const rolar = d.dia === hoje ? Math.max(0, Math.floor((agoraMin - 60 - abre) / 30)) * 24 : 0;
   const celulas = [];
   lista.forEach((m, i) => {
     celulas.push(`<div class="ag-hora ${m % 60 ? 'meia' : ''}" style="grid-row:${i + 2};grid-column:1">${m % 60 ? '' : deMin(m)}</div>`);
@@ -40,7 +42,7 @@ function htmlAgenda(d) {
       <span class="ag-status">${aPagar ? 'A pagar' : 'Paga'}</span>
     </button>`;
   }).join('');
-  return `<div class="agenda-rolagem"><div class="agenda" style="--quadras:${d.quadras.length};grid-template-rows:44px repeat(${lista.length}, 30px)">
+  return `<div class="agenda-rolagem" data-rolar="${rolar}"><div class="agenda" style="--quadras:${d.quadras.length};grid-template-rows:44px repeat(${lista.length}, 24px)">
     <div class="ag-canto"></div>
     ${d.quadras.map((q, c) => `<div class="ag-quadra" style="grid-column:${c + 2}"><b>${esc(q.nome)}</b><small>${esc(q.modalidade)}, ${esc(dinheiro(q.precoHora))}/h</small></div>`).join('')}
     ${celulas.join('')}${blocos}
@@ -172,17 +174,20 @@ export default {
       </div>
       <p class="resumo-dia">${esc(plural(d.reservas.length, 'reserva', 'reservas'))}, ${d.ocupacao}% das horas ocupadas${aPagar ? `, ${aPagar} a pagar` : ''}.</p>
       ${htmlAgenda(d)}
-      ${d.aReceber.length ? `<section class="bloco" style="margin-top:22px">
+      ${d.aReceber.length ? `<section class="bloco" style="margin-top:14px">
         <div class="bloco-cabeca"><div><h2>A receber</h2><p>Jogos que já aconteceram e ainda não foram pagos.</p></div></div>
         <div class="tabela-envolve"><table class="tabela">
           <thead><tr><th>Quando</th><th>Quem</th><th class="so-largo">Quadra</th><th class="num">Valor</th><th></th></tr></thead>
-          <tbody>${d.aReceber.map(r => `<tr><td>${esc(dataCurta(r.data))}, ${esc(r.inicio)}</td><td>${esc(r.cliente)}</td><td class="so-largo">${esc(r.quadra)}</td><td class="num"><b>${esc(dinheiro(r.valor))}</b></td>
+          <tbody>${d.aReceber.map((r, i) => `<tr class="${i >= 5 ? 'linha-extra oculto' : ''}"><td>${esc(dataCurta(r.data))}, ${esc(r.inicio)}</td><td>${esc(r.cliente)}</td><td class="so-largo">${esc(r.quadra)}</td><td class="num"><b>${esc(dinheiro(r.valor))}</b></td>
             <td class="acoes"><button type="button" class="botao pequeno" data-q="receber" data-id="${r.id}">Receber</button></td></tr>`).join('')}</tbody>
         </table></div>
+        ${d.aReceber.length > 5 ? `<button type="button" class="botao fantasma pequeno mostrar-tudo" data-mostrar-tudo>Mostrar todas as ${d.aReceber.length} linhas</button>` : ''}
       </section>` : ''}`;
   },
 
   ligar(raiz, ctx) {
+    const agenda = raiz.querySelector('.agenda-rolagem');
+    if (agenda) agenda.scrollTop = Number(agenda.dataset.rolar) || 0;
     const botao = raiz.querySelector('#novaReserva');
     if (botao) botao.addEventListener('click', () => novaReserva(ctx));
     raiz.querySelector('#corpoPagina').addEventListener('click', e => {
