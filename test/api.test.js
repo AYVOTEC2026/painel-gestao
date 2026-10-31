@@ -191,6 +191,35 @@ test('API do complexo no Postgres', { skip: !URL_TESTE && 'defina TEST_DATABASE_
     assert.strictEqual(ev.status, 'confirmado');
     assert.strictEqual(ev.saldo, 2000);
 
+    // Perfil Eventos: só a tela de eventos e os arquivos dos eventos, sem o dinheiro da empresa.
+    const cadastro = await dona('POST', '/api/equipe', { nome: 'Júlia Festas', email: 'julia@pepama.demo', senha: 'festas2026', papel: 'eventos' });
+    assert.strictEqual(cadastro.status, 200, JSON.stringify(cadastro.corpo));
+    const festas = cliente();
+    const julia = (await festas('POST', '/api/entrar', { email: 'julia@pepama.demo', senha: 'festas2026' })).corpo.usuario;
+    assert.deepStrictEqual(julia.telas, ['eventos', 'ajuda']);
+    assert.strictEqual(julia.inicio, 'eventos');
+    for (const tela of ['painel', 'financeiro', 'contabilidade', 'relatorios', 'boxes', 'loja', 'pdv', 'parque', 'quadras', 'admin']) {
+      assert.strictEqual((await festas('GET', `/api/tela/${tela}`)).status, 403, `eventos não abre ${tela}`);
+    }
+    assert.strictEqual((await festas('GET', '/api/equipe')).status, 403);
+    assert.strictEqual((await festas('GET', '/api/exportar-pacote?mes=2026-10')).status, 403);
+    assert.strictEqual((await acao(festas, 'nova-conta', { sentido: 'pagar', descricao: 'x', valor: 10, vencimento: '2026-10-30' })).status, 403);
+    assert.strictEqual((await acao(festas, 'abrir-caixa', { fundo: '100' })).status, 403);
+    const festa = await acao(festas, 'novo-evento', { titulo: 'Festa da Júlia', tipo: 'aniversario', contratante: 'Família Festa', data: '2026-12-05', valor: '2.000,00', sinal: '500,00' });
+    assert.strictEqual(festa.status, 200, JSON.stringify(festa.corpo));
+    const festaId = festa.corpo.resultado.eventoId;
+    assert.strictEqual((await acao(festas, 'pagamento-evento', { eventoId: festaId, valor: 500, forma: 'pix' })).status, 200);
+    assert.strictEqual((await festas('GET', '/api/tela/eventos')).corpo.eventos.find(e => e.id === festaId).saldo, 1500);
+    const contratoFesta = await festas('POST', `/api/anexos?tipo=evento&id=${festaId}`, undefined, { bruto: pdf, headers: { 'Content-Type': 'application/pdf', 'X-Arquivo-Nome': 'Contrato da festa.pdf' } });
+    assert.strictEqual(contratoFesta.status, 200, JSON.stringify(contratoFesta.corpo));
+    assert.strictEqual((await festas('GET', `/api/anexos/${contratoFesta.corpo.anexo.id}`)).status, 200);
+    assert.strictEqual((await festas('POST', `/api/anexos?tipo=contrato&id=${novo.id}`, undefined, { bruto: pdf, headers: { 'Content-Type': 'application/pdf', 'X-Arquivo-Nome': 'a.pdf' } })).status, 403);
+    const doBox = await dona('POST', `/api/anexos?tipo=contrato&id=${novo.id}`, undefined, { bruto: pdf, headers: { 'Content-Type': 'application/pdf', 'X-Arquivo-Nome': 'Contrato do box.pdf' } });
+    assert.strictEqual((await festas('GET', `/api/anexos/${doBox.corpo.anexo.id}`)).status, 404, 'não abre contrato de box');
+    assert.strictEqual((await festas('DELETE', `/api/anexos/${doBox.corpo.anexo.id}`)).status, 404, 'não apaga contrato de box');
+    assert.strictEqual((await dona('GET', `/api/anexos/${doBox.corpo.anexo.id}`)).status, 200, 'o contrato de box continua lá');
+    assert.strictEqual((await festas('DELETE', `/api/anexos/${contratoFesta.corpo.anexo.id}`)).status, 200);
+
     // Financeiro: despesa já paga aparece como saída.
     assert.strictEqual((await acao(dona, 'nova-conta', { sentido: 'pagar', categoria: 'manutencao', descricao: 'Troca de rede da quadra 2', valor: '850', vencimento: D.diaDe(relogio), jaPaga: true, forma: 'pix' })).status, 200);
     const fin = (await dona('GET', '/api/tela/financeiro')).corpo;

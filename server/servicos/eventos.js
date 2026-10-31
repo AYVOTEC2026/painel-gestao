@@ -58,7 +58,7 @@ async function receberDoEvento(ctx, evento, valor, forma) {
 
 const ACOES = {
   'novo-evento': {
-    papeis: ['dono'],
+    papeis: ['dono', 'eventos'],
     async executar(ctx, d) {
       const campos = lerEvento(ctx, d);
       const e = await inserir(ctx.tx, 'eventos', { parque_id: ctx.parqueId, ...campos, criado_em: ctx.agora });
@@ -67,7 +67,7 @@ const ACOES = {
   },
 
   'editar-evento': {
-    papeis: ['dono'],
+    papeis: ['dono', 'eventos'],
     async executar(ctx, d) {
       const e = await eventoDoParque(ctx, d.eventoId);
       if (e.status === 'cancelado') throw new ErroUsuario('Evento cancelado não pode ser alterado.');
@@ -78,7 +78,7 @@ const ACOES = {
   },
 
   'pagamento-evento': {
-    papeis: ['dono'],
+    papeis: ['dono', 'eventos'],
     async executar(ctx, d) {
       const e = await eventoDoParque(ctx, d.eventoId);
       if (e.status === 'cancelado') throw new ErroUsuario('Evento cancelado não recebe pagamento.');
@@ -98,7 +98,7 @@ const ACOES = {
   },
 
   'status-evento': {
-    papeis: ['dono'],
+    papeis: ['dono', 'eventos'],
     async executar(ctx, d) {
       const e = await eventoDoParque(ctx, d.eventoId);
       const novo = d.status;

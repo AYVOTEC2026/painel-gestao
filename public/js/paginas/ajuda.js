@@ -1,9 +1,11 @@
 import { esc, icone } from '../ui.js';
 import { GLOSSARIO, ROTINA_DIA, ROTINA_MES, PERGUNTAS } from '../ajuda-conteudo.js';
 
-// Recepção e monitor veem só o que é do dia a dia deles.
+// Recepção e monitor veem só o que é do dia a dia deles; o perfil Eventos, só o que é das festas.
 const TERMOS_EQUIPE = ['Pulseira', 'Tempo excedente', 'Day use', 'Item de aluguel', 'Devolução', 'Grupo fixo', 'Fundo de troco', 'Sangria', 'Fechamento do caixa', 'Quebra de caixa'];
 const PERGUNTAS_EQUIPE = [0, 1, 2, 5, 10];
+const TERMOS_EVENTOS = ['Sinal'];
+const PERGUNTAS_EVENTOS = [6, 11];
 
 const roteiro = itens => `<ol class="roteiro">${itens.map(([t, d]) => `<li><b>${esc(t)}</b><p>${esc(d)}</p></li>`).join('')}</ol>`;
 
@@ -13,8 +15,11 @@ export default {
 
   render(ctx) {
     const gestao = ctx.ehGestao;
-    const termos = gestao ? GLOSSARIO : GLOSSARIO.filter(g => TERMOS_EQUIPE.includes(g[0]));
-    const perguntas = gestao ? PERGUNTAS : PERGUNTAS.filter((_, i) => PERGUNTAS_EQUIPE.includes(i));
+    const soEventos = ctx.usuario.papel === 'eventos';
+    const termosVisiveis = soEventos ? TERMOS_EVENTOS : TERMOS_EQUIPE;
+    const perguntasVisiveis = soEventos ? PERGUNTAS_EVENTOS : PERGUNTAS_EQUIPE;
+    const termos = gestao ? GLOSSARIO : GLOSSARIO.filter(g => termosVisiveis.includes(g[0]));
+    const perguntas = gestao ? PERGUNTAS : PERGUNTAS.filter((_, i) => perguntasVisiveis.includes(i));
     return `
       ${gestao ? `<section class="bloco">
         <div class="bloco-cabeca"><div><h2>Como o complexo ganha dinheiro</h2><p>Cada área registra o que recebe. Tudo se junta no financeiro e na contabilidade.</p></div></div>
@@ -32,7 +37,7 @@ export default {
         </div>
       </section>` : ''}
 
-      <div class="${gestao ? 'ajuda-grade' : ''}" style="margin-top:18px">
+      ${soEventos ? '' : `<div class="${gestao ? 'ajuda-grade' : ''}" style="margin-top:18px">
         <section class="bloco">
           <div class="bloco-cabeca"><div><h2>Rotina do dia</h2><p>Recepção e parque.</p></div></div>
           ${roteiro(ROTINA_DIA)}
@@ -41,7 +46,7 @@ export default {
           <div class="bloco-cabeca"><div><h2>Rotina do mês</h2><p>Gestão, de preferência na primeira semana.</p></div></div>
           ${roteiro(ROTINA_MES)}
         </section>` : ''}
-      </div>
+      </div>`}
 
       <section class="bloco">
         <div class="bloco-cabeca"><div><h2>Palavras que aparecem no sistema</h2></div></div>

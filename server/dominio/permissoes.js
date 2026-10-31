@@ -1,9 +1,10 @@
 'use strict';
 
 /**
- * Três perfis, pensados para quem trabalha no complexo:
- * a gestão (proprietária, gerente), a recepção (caixa, quadras, parque) e o
- * monitor do parque infantil (entrada e saída das crianças).
+ * Quatro perfis, pensados para quem trabalha no complexo:
+ * a gestão (proprietária, gerente), a recepção (caixa, quadras, parque), o
+ * monitor do parque infantil (entrada e saída das crianças) e quem cuida só
+ * das festas e eventos (orçamento, sinal, pagamentos e contrato).
  */
 const PAPEIS = {
   dono: {
@@ -23,6 +24,12 @@ const PAPEIS = {
     descricao: 'Registra a entrada e a saída das crianças no parque infantil e acompanha o tempo de cada uma.',
     telas: ['parque', 'ajuda'],
     inicio: 'parque'
+  },
+  eventos: {
+    nome: 'Eventos',
+    descricao: 'Cuida das festas e eventos: orçamentos, sinal, pagamentos, saldo e contrato. Não vê o financeiro da empresa.',
+    telas: ['eventos', 'ajuda'],
+    inicio: 'eventos'
   }
 };
 

@@ -269,6 +269,7 @@ function novaPessoa(ctx, raiz) {
       <div class="campo inteira"><span class="rotulo">Perfil</span><div class="escolhas">
         <label class="escolha"><input type="radio" name="papel" value="recepcao" checked><span><b>Recepção</b><small>Caixa, PDV, pulseiras e quadras.</small></span></label>
         <label class="escolha"><input type="radio" name="papel" value="monitor"><span><b>Monitor do parque</b><small>Entrada e saída das crianças.</small></span></label>
+        <label class="escolha"><input type="radio" name="papel" value="eventos"><span><b>Eventos</b><small>Só festas e eventos: orçamento, pagamentos e contrato.</small></span></label>
         <label class="escolha"><input type="radio" name="papel" value="dono"><span><b>Gestão</b><small>Tudo, inclusive financeiro e equipe.</small></span></label>
       </div></div>
       ${campo({ nome: 'senha', rotulo: 'Senha inicial', valor: senhaSugerida(), obrigatorio: true, classe: 'inteira', ajuda: 'Anote e passe para a pessoa. Ela pode trocar depois.', extra: 'minlength="6" autocomplete="off"' })}
@@ -382,7 +383,7 @@ export default {
           case 'senha':
             return abrirModal({ titulo: `Nova senha para ${pessoa.nome}`, subtitulo: 'A pessoa sai dos aparelhos conectados e entra com a senha nova.', corpo: `<form>${campo({ nome: 'senha', rotulo: 'Nova senha', valor: senhaSugerida(), obrigatorio: true, ajuda: 'Anote e passe para a pessoa.', extra: 'minlength="6" autocomplete="off"' })}</form>`, botao: 'Definir senha', aoEnviar: async v => { await api.alterarPessoa(pessoa.id, { senha: v.senha }); avisar('Senha definida.'); await carregarEquipe(raiz); } });
           case 'perfil':
-            return abrirModal({ titulo: `Perfil de ${pessoa.nome}`, corpo: `<form>${campo({ nome: 'papel', rotulo: 'Perfil', valor: pessoa.papel, opcoes: [['recepcao', 'Recepção'], ['monitor', 'Monitor do parque'], ['dono', 'Gestão']].map(([valor, texto]) => ({ valor, texto })) })}</form>`, botao: 'Salvar perfil', aoEnviar: async v => { await api.alterarPessoa(pessoa.id, { papel: v.papel }); avisar('Perfil alterado.'); await carregarEquipe(raiz); } });
+            return abrirModal({ titulo: `Perfil de ${pessoa.nome}`, corpo: `<form>${campo({ nome: 'papel', rotulo: 'Perfil', valor: pessoa.papel, opcoes: [['recepcao', 'Recepção'], ['monitor', 'Monitor do parque'], ['eventos', 'Eventos'], ['dono', 'Gestão']].map(([valor, texto]) => ({ valor, texto })) })}</form>`, botao: 'Salvar perfil', aoEnviar: async v => { await api.alterarPessoa(pessoa.id, { papel: v.papel }); avisar('Perfil alterado.'); await carregarEquipe(raiz); } });
           case 'desativar':
             if (!(await confirmar({ titulo: `Desativar ${pessoa.nome}?`, texto: 'A pessoa sai de todos os aparelhos na hora e não entra mais. O histórico do que ela fez continua guardado.', botao: 'Desativar', perigo: true }))) return;
             await api.alterarPessoa(pessoa.id, { ativo: false }); avisar('Acesso desativado.'); return carregarEquipe(raiz);

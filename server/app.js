@@ -21,6 +21,8 @@ const HASH_FALSO = A.hashSenha('senha-que-ninguem-usa');
 const TIPOS_ANEXO = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'application/xml', 'text/xml'];
 // Quem pode receber anexo: contrato de locação, evento e despesa (nota fiscal).
 const DONOS_ANEXO = { contrato: { tabela: 'contratos', nome: 'contrato' }, evento: { tabela: 'eventos', nome: 'evento' }, conta: { tabela: 'contas', nome: 'despesa' } };
+// O perfil Eventos só mexe nos arquivos dos eventos; contratos de box e notas ficam com a gestão.
+const podeNoAnexo = (papel, tipo) => papel === 'dono' || (papel === 'eventos' && tipo === 'evento');
 
 const TELAS = {
   painel: operacao.painel,
@@ -256,8 +258,9 @@ function criarApp({ cfg, banco, agora }) {
 
   /* -------------------------------------------------------------- anexos */
 
-  app.post('/api/anexos', exigir('dono'), express.raw({ type: TIPOS_ANEXO, limit: '10mb' }), rota(async (req, res) => {
+  app.post('/api/anexos', exigir('dono', 'eventos'), express.raw({ type: TIPOS_ANEXO, limit: '10mb' }), rota(async (req, res) => {
     const tipo = Object.prototype.hasOwnProperty.call(DONOS_ANEXO, req.query.tipo) ? req.query.tipo : 'contrato';
+    if (!podeNoAnexo(req.usuario.papel, tipo)) throw new A.ErroUsuario('Seu perfil não tem acesso a esta área.', 403);
     const donoId = Number(req.query.id);
     const dono = await banco.query(`select id from ${DONOS_ANEXO[tipo].tabela} where parque_id = $1 and id = $2`, [req.usuario.parqueId, donoId]);
     if (!dono.rows[0]) throw new A.ErroUsuario(`${DONOS_ANEXO[tipo].nome.replace(/^./, c => c.toUpperCase())} não encontrado.`, 404);
@@ -277,10 +280,10 @@ function criarApp({ cfg, banco, agora }) {
     res.json({ ok: true, anexo: { id: anexo.id, nome } });
   }));
 
-  app.get('/api/anexos/:id', exigir('dono'), rota(async (req, res) => {
-    const q = await banco.query('select nome, mime, conteudo from anexos where parque_id = $1 and id = $2', [req.usuario.parqueId, Number(req.params.id)]);
+  app.get('/api/anexos/:id', exigir('dono', 'eventos'), rota(async (req, res) => {
+    const q = await banco.query('select nome, mime, conteudo, dono_tipo from anexos where parque_id = $1 and id = $2', [req.usuario.parqueId, Number(req.params.id)]);
     const a = q.rows[0];
-    if (!a) throw new A.ErroUsuario('Arquivo não encontrado.', 404);
+    if (!a || !podeNoAnexo(req.usuario.papel, a.dono_tipo)) throw new A.ErroUsuario('Arquivo não encontrado.', 404);
     // PDF e imagem abrem direto no navegador. XML sempre baixa, isolado: um XML aberto
     // como página poderia executar código no endereço do sistema.
     const xml = a.mime.endsWith('/xml');
@@ -292,8 +295,9 @@ function criarApp({ cfg, banco, agora }) {
     res.send(a.conteudo);
   }));
 
-  app.delete('/api/anexos/:id', exigir('dono'), rota(async (req, res) => {
-    const q = await banco.query('delete from anexos where parque_id = $1 and id = $2 returning nome, dono_tipo', [req.usuario.parqueId, Number(req.params.id)]);
+  app.delete('/api/anexos/:id', exigir('dono', 'eventos'), rota(async (req, res) => {
+    const tipos = req.usuario.papel === 'dono' ? Object.keys(DONOS_ANEXO) : ['evento'];
+    const q = await banco.query('delete from anexos where parque_id = $1 and id = $2 and dono_tipo = any($3) returning nome, dono_tipo', [req.usuario.parqueId, Number(req.params.id), tipos]);
     if (!q.rows[0]) throw new A.ErroUsuario('Arquivo não encontrado.', 404);
     await registrar(req, 'anexo', `Removeu o arquivo "${q.rows[0].nome}".`);
     res.json({ ok: true });
