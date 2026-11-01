@@ -1,5 +1,5 @@
 import { api, quandoPerderSessao } from './api.js';
-import { esc, icone, marcaSelo, marcarRecolhivel, iniciais, avisar, abrirModal, temModalAberto, fecharTodosModais } from './ui.js';
+import { esc, icone, marcaSelo, marcarRecolhivel, iniciais, avisar, abrirModal, temModalAberto, fecharTodosModais, textoTema, htmlTema } from './ui.js';
 import { telaDeEntrada } from './entrada.js';
 import { usarMensagens } from './mensagens.js';
 import { AJUDA } from './ajuda-conteudo.js';
@@ -102,22 +102,6 @@ async function carregar(forcar) {
 }
 
 /* ------------------------------------------------------------------ casca */
-
-// Ícone do botão de tema; o texto (dica e leitor de tela) diz o modo e, no automático, quando vira.
-function textoTema() {
-  const t = window.PepamaTema;
-  if (!t) return '';
-  const e = t.escolha();
-  if (e === 'claro') return 'Tema claro fixo. Toque para escuro.';
-  if (e === 'escuro') return 'Tema escuro fixo. Toque para automático.';
-  return `Tema automático: claro das ${t.INICIO_DIA}h às ${t.INICIO_NOITE}h. Toque para claro fixo.`;
-}
-function htmlTema() {
-  const t = window.PepamaTema;
-  if (!t) return '';
-  const e = t.escolha();
-  return `${icone(e === 'claro' ? 'sol' : e === 'escuro' ? 'lua' : 'auto')}<span class="so-leitor">${esc(textoTema())}</span>`;
-}
 
 function htmlLateral(telaAtual) {
   const u = sessao.usuario;

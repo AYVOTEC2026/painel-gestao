@@ -1,5 +1,5 @@
 import { api } from './api.js';
-import { esc, icone, iniciais, campo, avisar } from './ui.js';
+import { esc, icone, campo, avisar, textoTema, htmlTema } from './ui.js';
 
 /* Fim de tarde no Pepama: sol em arco (o mesmo da logo), food park ao fundo e o parquinho na frente. */
 const CENA = `
@@ -11,9 +11,15 @@ const CENA = `
       <stop offset="1" stop-color="#e8964e" stop-opacity=".95"/>
     </linearGradient>
     <radialGradient id="sol" cx=".5" cy=".55" r=".6"><stop offset="0" stop-color="#ffe0ad"/><stop offset="1" stop-color="#f2a23a"/></radialGradient>
+    <radialGradient id="brilho"><stop offset="0" stop-color="#f2a23a" stop-opacity=".55"/><stop offset=".45" stop-color="#e8964e" stop-opacity=".18"/><stop offset="1" stop-color="#e8964e" stop-opacity="0"/></radialGradient>
     <pattern id="toldo" width="20" height="12" patternUnits="userSpaceOnUse"><rect width="10" height="12" fill="#a05433"/><rect x="10" width="10" height="12" fill="#f6e7d8"/></pattern>
   </defs>
   <rect width="900" height="390" fill="url(#ceu)"/>
+  <g class="cena-estrelas" fill="#ffe8c7">
+    <circle cx="520" cy="34" r="1.6"/><circle cx="596" cy="18" r="1.2"/><circle cx="742" cy="40" r="1.8"/><circle cx="818" cy="96" r="1.3"/>
+    <circle cx="866" cy="28" r="1.5"/><circle cx="700" cy="118" r="1.1"/><circle cx="478" cy="96" r="1.2"/>
+  </g>
+  <circle class="cena-brilho" cx="640" cy="380" r="330" fill="url(#brilho)"/>
   <g class="cena-sol">
     <circle cx="640" cy="380" r="200" fill="none" stroke="#f2a23a" stroke-width="3" opacity=".22"/>
     ${(() => {
@@ -27,7 +33,7 @@ const CENA = `
     })()}
     <circle cx="640" cy="380" r="118" fill="url(#sol)"/>
   </g>
-  <g transform="translate(170 -40)">
+  <g transform="translate(440 -56)">
   <g class="cena-pipa">
     <path d="M188 214c22 18 8 40 34 54s14 38 40 50" fill="none" stroke="#f6e7d8" stroke-width="2" opacity=".7"/>
     <path d="M206 240l14-8-2 15zM228 270l15-5-5 14z" fill="#f2a23a"/>
@@ -52,7 +58,7 @@ const CENA = `
       for (let x = 250; x <= 860; x += 10) pts.push(`${x},${fio(x).toFixed(1)}`);
       const lampadas = [];
       for (let x = 262; x < 860; x += 26) lampadas.push(`<circle cx="${x}" cy="${(fio(x) + 7).toFixed(1)}" r="3.6" fill="${x % 3 ? '#ffd39a' : '#f6b866'}"/>`);
-      return `<polyline points="${pts.join(' ')}" fill="none" stroke="#2a1f1a" stroke-width="1.5" opacity=".8"/>${lampadas.join('')}`;
+      return `<polyline points="${pts.join(' ')}" fill="none" stroke="#2a1f1a" stroke-width="1.5" opacity=".8"/><g class="cena-luzes">${lampadas.join('')}</g>`;
     })()}
   </g>
   <g class="cena-coqueiros" fill="#4d5f3e">
@@ -88,17 +94,30 @@ const CENA = `
   <rect y="548" width="900" height="12" fill="#241a15"/>
 </svg>`;
 
-function arte(titulo, texto) {
+const AREAS = [['boxes', 'Food park'], ['pulseira', 'Parque infantil'], ['quadra', 'Quadras'], ['evento', 'Festas']];
+
+// O título quebra em duas linhas; a segunda (destaque) leva a cor do sol da logo.
+function arte(titulo, destaque, texto) {
   return `
     <section class="entrada-arte">
       <img class="entrada-logo" src="/marca/pepama-logo.png" alt="Pepama Food Park">
       <div class="entrada-texto">
-        <h1>${esc(titulo)}</h1>
+        <h1>${esc(titulo)} <em>${esc(destaque)}</em></h1>
         <p>${esc(texto)}</p>
+        <ul class="entrada-areas" aria-label="Áreas do complexo">${AREAS.map(([ic, nome]) => `<li>${icone(ic)}${esc(nome)}</li>`).join('')}</ul>
       </div>
       ${CENA}
     </section>`;
 }
+
+function saudacao(agora = new Date()) {
+  const h = agora.getHours();
+  if (h >= 5 && h < 12) return ['sol', 'Bom dia'];
+  if (h >= 12 && h < 18) return ['sol', 'Boa tarde'];
+  return ['lua', 'Boa noite'];
+}
+
+const ICONE_PAPEL = { dono: 'painel', recepcao: 'caixa', monitor: 'pulseira', eventos: 'evento' };
 
 export async function telaDeEntrada(raiz, aoEntrar) {
   let pub;
@@ -114,29 +133,41 @@ export async function telaDeEntrada(raiz, aoEntrar) {
 
 function login(raiz, pub, aoEntrar) {
   const demo = pub.demo;
+  const [iconeHora, textoHora] = saudacao();
   raiz.innerHTML = `
     <div class="entrada">
-      ${arte('Tudo do Pepama num lugar só.', 'Food park, parque infantil, quadras e festas, com o caixa e as contas de cada área.')}
+      ${arte('Tudo do Pepama', 'num lugar só.', 'O caixa e as contas de cada área, juntos no mesmo sistema.')}
       <section class="entrada-painel">
+        <button type="button" class="entrada-tema" id="entradaTema"></button>
         <div class="entrada-caixa">
+          <div class="entrada-saudacao">${icone(iconeHora)}${textoHora}</div>
           <h2>Entrar</h2>
           <p>${esc(pub.nomeParque || 'Complexo')}</p>
           <div class="erro-form oculto" id="erroEntrada" role="alert"></div>
           <form id="formEntrada" novalidate>
-            ${campo({ nome: 'email', rotulo: 'E-mail', tipo: 'email', obrigatorio: true, extra: 'autocomplete="username" autocapitalize="off"' })}
-            ${campo({ nome: 'senha', rotulo: 'Senha', tipo: 'password', obrigatorio: true, extra: 'autocomplete="current-password"' })}
-            <button class="botao primario grande largo" type="submit">Entrar</button>
+            <div class="campo">
+              <label for="entradaEmail">E-mail</label>
+              <div class="campo-icone">${icone('email')}<input id="entradaEmail" name="email" type="email" required autocomplete="username" autocapitalize="off" spellcheck="false" placeholder="seu@email.com"></div>
+            </div>
+            <div class="campo">
+              <label for="entradaSenha">Senha</label>
+              <div class="campo-icone">${icone('cadeado')}<input id="entradaSenha" name="senha" type="password" required autocomplete="current-password" placeholder="Sua senha"><button type="button" class="ver-senha" aria-label="Mostrar senha" aria-pressed="false">${icone('olho')}</button></div>
+              <span class="ajuda-campo aviso-maiusculas oculto" role="status">Caps Lock está ligado.</span>
+            </div>
+            <button class="botao primario grande largo" type="submit"><span>Entrar</span>${icone('seta')}</button>
           </form>
           ${demo ? `
             <div class="entrada-demo">
-              <h3>Conhecer pela demonstração</h3>
+              <div class="entrada-ou">ou conheça pela demonstração</div>
               <p>Escolha um perfil para entrar direto. Os dados são fictícios.</p>
-              ${demo.perfis.map(p => `
-                <button type="button" class="perfil-demo" data-email="${esc(p.email)}">
-                  <span class="avatar">${esc(iniciais(p.nome))}</span>
-                  <span><b>${esc({ dono: 'Proprietária', recepcao: 'Recepção', monitor: 'Monitor do parque' }[p.papel] || p.papelNome)}</b><small>${esc(p.descricao)}</small></span>
-                  ${icone('seta')}
-                </button>`).join('')}
+              <div class="perfis-demo">
+                ${demo.perfis.map(p => `
+                  <button type="button" class="perfil-demo" data-email="${esc(p.email)}">
+                    <span class="perfil-icone">${icone(ICONE_PAPEL[p.papel] || 'lojista')}</span>
+                    <span><b>${esc({ dono: 'Proprietária', recepcao: 'Recepção', monitor: 'Monitor do parque' }[p.papel] || p.papelNome)}</b><small>${esc(p.descricao)}</small></span>
+                    ${icone('seta')}
+                  </button>`).join('')}
+              </div>
             </div>` : ''}
           <p class="entrada-rodape">Esqueceu a senha? Peça para a gestão definir uma nova em Administração, aba Equipe.</p>
         </div>
@@ -146,6 +177,37 @@ function login(raiz, pub, aoEntrar) {
   const erro = raiz.querySelector('#erroEntrada');
   const form = raiz.querySelector('#formEntrada');
   const botao = form.querySelector('button[type=submit]');
+  const senha = form.querySelector('#entradaSenha');
+  const verSenha = form.querySelector('.ver-senha');
+  const avisoMaiusculas = form.querySelector('.aviso-maiusculas');
+
+  verSenha.addEventListener('click', () => {
+    const mostrar = senha.type === 'password';
+    senha.type = mostrar ? 'text' : 'password';
+    verSenha.setAttribute('aria-pressed', String(mostrar));
+    verSenha.setAttribute('aria-label', mostrar ? 'Esconder senha' : 'Mostrar senha');
+    verSenha.innerHTML = icone(mostrar ? 'olho-fechado' : 'olho');
+    senha.focus();
+  });
+  ['keydown', 'keyup'].forEach(ev => senha.addEventListener(ev, e => {
+    if (e.getModifierState) avisoMaiusculas.classList.toggle('oculto', !e.getModifierState('CapsLock'));
+  }));
+  senha.addEventListener('blur', () => avisoMaiusculas.classList.add('oculto'));
+
+  const botaoTema = raiz.querySelector('#entradaTema');
+  if (window.PepamaTema) {
+    const desenharTema = () => {
+      // A tela de entrada some ao logar; o ouvinte sai junto.
+      if (!botaoTema.isConnected) return document.removeEventListener('tema', desenharTema);
+      botaoTema.innerHTML = htmlTema();
+      botaoTema.title = textoTema();
+    };
+    desenharTema();
+    document.addEventListener('tema', desenharTema);
+    botaoTema.addEventListener('click', () => window.PepamaTema.trocar());
+  } else {
+    botaoTema.remove();
+  }
 
   async function tentar(email, senha) {
     erro.classList.add('oculto');
@@ -179,7 +241,7 @@ function login(raiz, pub, aoEntrar) {
 function instalacao(raiz, pub, aoEntrar) {
   raiz.innerHTML = `
     <div class="entrada">
-      ${arte('Vamos preparar o seu complexo.', 'Leva um minuto: o nome do complexo e o seu acesso de gestão. Boxes, quadras, produtos e o parque você cadastra depois, com calma.')}
+      ${arte('Vamos preparar', 'o seu complexo.', 'Leva um minuto: o nome do complexo e o seu acesso de gestão. Boxes, quadras, produtos e o parque você cadastra depois, com calma.')}
       <section class="entrada-painel">
         <div class="entrada-caixa">
           <h2>Primeiro acesso</h2>

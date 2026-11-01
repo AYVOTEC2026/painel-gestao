@@ -101,6 +101,8 @@ const P = {
   pulseira: '<circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="4"/><path d="M12 4.5V2.5"/>',
   lixeira: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
   olho: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
+  'olho-fechado': '<path d="M3 3l18 18M10.6 5.7A9 9 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a16 16 0 0 1-2.8 3.6M6.6 6.7C4 8.4 2.5 12 2.5 12S6 18.5 12 18.5c1.6 0 3-.4 4.3-1.1M9.9 9.9a3 3 0 0 0 4.2 4.2"/>',
+  email: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m3.8 6.8 8.2 6.2 8.2-6.2"/>',
   estoque: '<path d="M3 8l9-4 9 4-9 4z"/><path d="M3 8v8l9 4 9-4V8M12 12v8"/>',
   balanco: '<path d="M5 21V4M19 21V4M4 4h16M10 4v9M14 4v9M8.5 13h7v2.5h-7z"/>',
   sol: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/>',
@@ -127,6 +129,22 @@ export function recolhivel({ chave, titulo, resumo = '', corpo }) {
     <summary><span><b>${esc(titulo)}</b>${resumo ? `<small>${esc(resumo)}</small>` : ''}</span></summary>
     <div class="recolhivel-corpo">${corpo}</div>
   </details>`;
+}
+
+// Botão de tema (menu lateral e tela de entrada): o texto (dica e leitor de tela) diz o modo e, no automático, quando vira.
+export function textoTema() {
+  const t = window.PepamaTema;
+  if (!t) return '';
+  const e = t.escolha();
+  if (e === 'claro') return 'Tema claro fixo. Toque para escuro.';
+  if (e === 'escuro') return 'Tema escuro fixo. Toque para automático.';
+  return `Tema automático: claro das ${t.INICIO_DIA}h às ${t.INICIO_NOITE}h. Toque para claro fixo.`;
+}
+export function htmlTema() {
+  const t = window.PepamaTema;
+  if (!t) return '';
+  const e = t.escolha();
+  return `${icone(e === 'claro' ? 'sol' : e === 'escuro' ? 'lua' : 'auto')}<span class="so-leitor">${esc(textoTema())}</span>`;
 }
 
 // Selo da marca do cliente (Pepama Food Park), usado no menu lateral.
