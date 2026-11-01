@@ -50,6 +50,10 @@ function criarAcessos(db) {
         if (!sets.length) return null;
         return usuarioDaLinha((await q(`update usuarios set ${sets.join(', ')} where id = $1 returning *`, valores)).rows[0]);
       },
+      // Sessões caem junto (cascade); o histórico guarda o nome de quem fez cada coisa.
+      async apagar(id) {
+        await q('delete from usuarios where id = $1', [id]);
+      },
       async desativarDemos(parqueId) {
         await q('update usuarios set ativo = false where parque_id = $1 and demo', [parqueId]);
       },

@@ -10,7 +10,7 @@ const M = require('../dominio/mensagens');
 /* Catálogo da loja e da bilheteria, quadras e configurações do complexo. */
 
 async function produtoDoParque(ctx, id) {
-  const r = await ctx.tx.query('select * from produtos where parque_id = $1 and id = $2', [ctx.parqueId, Number(id)]);
+  const r = await ctx.tx.query('select * from produtos where parque_id = $1 and id = $2 and excluido_em is null', [ctx.parqueId, Number(id)]);
   if (!r.rows[0]) throw new ErroUsuario('Produto não encontrado.');
   return r.rows[0];
 }
@@ -101,6 +101,18 @@ const ACOES = {
       const contagem = inteiro(d.contagem, 'a quantidade contada', { min: 0, max: 100000 });
       await atualizar(ctx.tx, 'produtos', p.id, { estoque: contagem, controla_estoque: true });
       return { resumo: `Ajustou o estoque de ${p.nome} de ${p.estoque} para ${contagem} após contagem.` };
+    }
+  },
+
+  'excluir-produto': {
+    papeis: ['dono'],
+    async executar(ctx, d) {
+      const p = await produtoDoParque(ctx, d.produtoId);
+      const fora = p.tipo === 'aluguel' ? await unidadesFora(ctx, p.id) : 0;
+      if (fora) throw new ErroUsuario(`Há ${fora} ${fora === 1 ? 'unidade alugada' : 'unidades alugadas'} com clientes. Receba a devolução antes de excluir.`);
+      // Sai da loja e do PDV; as vendas e os aluguéis antigos continuam nos relatórios.
+      await atualizar(ctx.tx, 'produtos', p.id, { ativo: false, excluido_em: ctx.agora });
+      return { resumo: `Excluiu ${p.nome} da loja.` };
     }
   },
 

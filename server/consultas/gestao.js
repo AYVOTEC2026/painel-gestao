@@ -125,7 +125,7 @@ async function eventos(db, { parqueId, agora, config }) {
 async function loja(db, { parqueId, agora, params }) {
   const mes = mesDoParametro(params, agora);
   const [ini, fim] = intervaloDoMes(mes);
-  const produtos = (await db.query('select * from produtos where parque_id = $1 order by tipo, ativo desc, categoria, nome', [parqueId])).rows;
+  const produtos = (await db.query('select * from produtos where parque_id = $1 and excluido_em is null order by tipo, ativo desc, categoria, nome', [parqueId])).rows;
   const vendidos = (await db.query(
     `select (i->>'produtoId')::int as id, sum((i->>'qtd')::int) as qtd,
             sum((i->>'qtd')::int * coalesce((i->>'periodos')::int, 1) * (i->>'preco')::bigint) as valor

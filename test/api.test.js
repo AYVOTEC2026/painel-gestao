@@ -123,6 +123,16 @@ test('API do complexo no Postgres', { skip: !URL_TESTE && 'defina TEST_DATABASE_
     assert.strictEqual((await acao(dona, 'salvar-produto', { produtoId: itemId, tipo: 'aluguel', nome: 'Raquete teste para alugar', preco: '20', periodo: 'hora', unidades: 1 })).status, 400, 'total não fica menor que o que está fora');
     assert.strictEqual((await acao(dona, 'salvar-produto', { produtoId: itemId, tipo: 'aluguel', nome: 'Raquete teste para alugar', preco: '20', periodo: 'hora', unidades: 5 })).status, 200);
     assert.strictEqual((await doItem()).produtos.find(p => p.id === itemId).estoque, 3, '5 unidades, 2 com cliente');
+    assert.match((await acao(dona, 'excluir-produto', { produtoId: itemId })).corpo.erro, /Receba a devolução antes de excluir/);
+
+    // Excluir produto: some da loja e do PDV, e o caixa não vende mais.
+    const chaveiro = (await acao(dona, 'salvar-produto', { tipo: 'loja', nome: 'Chaveiro teste', preco: '15' })).corpo.resultado.produtoId;
+    assert.strictEqual((await acao(recepcao, 'excluir-produto', { produtoId: chaveiro })).status, 403);
+    assert.strictEqual((await acao(dona, 'excluir-produto', { produtoId: chaveiro })).status, 200);
+    assert.ok(!(await dona('GET', '/api/tela/loja')).corpo.produtos.some(p => p.id === chaveiro), 'sai da loja');
+    assert.ok(!(await doItem()).produtos.some(p => p.id === chaveiro), 'sai do PDV');
+    assert.strictEqual((await acao(recepcao, 'vender', { itens: [{ produtoId: chaveiro, qtd: 1 }], forma: 'pix' })).status, 400);
+    assert.strictEqual((await acao(dona, 'excluir-produto', { produtoId: chaveiro })).status, 400, 'não exclui duas vezes');
 
     // Parque: pulseira de 1 hora, saída 80 minutos depois cobra 2 blocos de 15 min.
     const parque = (await monitor('GET', '/api/tela/parque')).corpo;
@@ -219,6 +229,20 @@ test('API do complexo no Postgres', { skip: !URL_TESTE && 'defina TEST_DATABASE_
     assert.strictEqual((await festas('DELETE', `/api/anexos/${doBox.corpo.anexo.id}`)).status, 404, 'não apaga contrato de box');
     assert.strictEqual((await dona('GET', `/api/anexos/${doBox.corpo.anexo.id}`)).status, 200, 'o contrato de box continua lá');
     assert.strictEqual((await festas('DELETE', `/api/anexos/${contratoFesta.corpo.anexo.id}`)).status, 200);
+
+    // Excluir login: a pessoa sai na hora e não entra mais; o histórico guarda o nome.
+    const pessoas = (await dona('GET', '/api/equipe')).corpo.pessoas;
+    const eu = pessoas.find(p => p.eu);
+    const idJulia = pessoas.find(p => p.email === 'julia@pepama.demo').id;
+    assert.strictEqual((await festas('DELETE', `/api/equipe/${idJulia}`)).status, 403);
+    assert.strictEqual((await dona('DELETE', `/api/equipe/${eu.id}`)).status, 400, 'não exclui o próprio acesso');
+    assert.strictEqual((await dona('DELETE', `/api/equipe/${idJulia}`)).status, 200);
+    assert.strictEqual((await festas('GET', '/api/tela/eventos')).status, 401, 'sai dos aparelhos');
+    assert.strictEqual((await cliente()('POST', '/api/entrar', { email: 'julia@pepama.demo', senha: 'festas2026' })).status, 400, 'não entra mais');
+    const depois = (await dona('GET', '/api/equipe')).corpo;
+    assert.ok(!depois.pessoas.some(p => p.id === idJulia));
+    assert.ok(depois.atividade.some(a => /Excluiu o acesso de Júlia Festas/.test(a.resumo)));
+    assert.ok(depois.atividade.some(a => a.usuarioNome === 'Júlia Festas'), 'o que ela fez continua no histórico');
 
     // Financeiro: despesa já paga aparece como saída.
     assert.strictEqual((await acao(dona, 'nova-conta', { sentido: 'pagar', categoria: 'manutencao', descricao: 'Troca de rede da quadra 2', valor: '850', vencimento: D.diaDe(relogio), jaPaga: true, forma: 'pix' })).status, 200);

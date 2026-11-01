@@ -61,6 +61,7 @@ function htmlEquipe() {
         ${p.ativo && !p.eu ? `<button class="botao pequeno fantasma" data-e="perfil" data-id="${p.id}">Mudar perfil</button>` : ''}
         ${p.ativo && !p.demo ? `<button class="botao pequeno" data-e="senha" data-id="${p.id}">${icone('cadeado')}Nova senha</button>` : ''}
         ${p.eu ? '' : p.ativo ? `<button class="botao pequeno perigo" data-e="desativar" data-id="${p.id}">Desativar</button>` : `<button class="botao pequeno" data-e="reativar" data-id="${p.id}">Reativar</button>`}
+        ${p.eu ? '' : `<button class="botao pequeno fantasma perigo" data-e="excluir" data-id="${p.id}" aria-label="Excluir ${esc(p.nome)}" title="Excluir login">${icone('lixeira')}</button>`}
       </div>
     </div>`).join('');
 }
@@ -78,6 +79,7 @@ function equipeAba() {
         <div><dt>Gestão</dt><dd>Vê e altera tudo: boxes, financeiro, contabilidade, relatórios, equipe e configurações.</dd></div>
         <div><dt>Recepção</dt><dd>Abre e fecha o caixa, vende na loja e na bilheteria, vende pulseiras e cuida das reservas de quadra. Não vê o financeiro.</dd></div>
         <div><dt>Monitor do parque</dt><dd>Registra a entrada e a saída das crianças e acompanha o tempo de cada uma.</dd></div>
+        <div><dt>Eventos</dt><dd>Cuida das festas e eventos: orçamentos, sinal, pagamentos, saldo e contrato. Não vê o financeiro da empresa.</dd></div>
       </dl>
     </section>
   </div>`;
@@ -387,6 +389,9 @@ export default {
           case 'desativar':
             if (!(await confirmar({ titulo: `Desativar ${pessoa.nome}?`, texto: 'A pessoa sai de todos os aparelhos na hora e não entra mais. O histórico do que ela fez continua guardado.', botao: 'Desativar', perigo: true }))) return;
             await api.alterarPessoa(pessoa.id, { ativo: false }); avisar('Acesso desativado.'); return carregarEquipe(raiz);
+          case 'excluir':
+            if (!(await confirmar({ titulo: `Excluir o login de ${pessoa.nome}?`, texto: `<b>${esc(pessoa.email)}</b> deixa de existir e a pessoa sai de todos os aparelhos. O histórico do que ela fez continua guardado com o nome dela. Não dá para desfazer.`, botao: 'Excluir login', perigo: true }))) return;
+            await api.excluirPessoa(pessoa.id); avisar('Login excluído.'); return carregarEquipe(raiz);
           case 'reativar':
             await api.alterarPessoa(pessoa.id, { ativo: true }); avisar('Acesso reativado.'); return carregarEquipe(raiz);
           case 'mais-plano': {

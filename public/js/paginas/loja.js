@@ -1,4 +1,4 @@
-import { esc, icone, dinheiro, dataCurta, hora, plural, selo, vazio, avisar, abrirModal, campo, campoDinheiro } from '../ui.js';
+import { esc, icone, dinheiro, dataCurta, hora, plural, selo, vazio, avisar, abrirModal, confirmar, campo, campoDinheiro } from '../ui.js';
 import { abas, abaAtual, seletorMes, fatos, campoForma, nomeForma, enviarArquivos, zonaDaNota, ligarZonaDaNota, PERIODOS, tempoDoAluguel, htmlAlugados } from './comum.js';
 
 const ABAS = ['loja', 'aluguel', 'ingressos', 'vendas'];
@@ -117,6 +117,16 @@ function ajustarEstoque(ctx, p) {
   });
 }
 
+async function excluirProduto(ctx, p) {
+  const ok = await confirmar({
+    titulo: `Excluir ${p.nome}?`,
+    texto: 'Sai da loja e do PDV. As vendas que já aconteceram continuam nos relatórios e no caixa.',
+    botao: 'Excluir', perigo: true
+  });
+  if (!ok) return;
+  try { await ctx.acao('excluir-produto', { produtoId: p.id }, 'Excluído.'); } catch (err) { avisar(err.message, 'erro'); }
+}
+
 function tabelaAluguel(d, lista) {
   if (!lista.length) {
     return vazio({ icone: 'relogio', titulo: 'Nenhum item para alugar', texto: 'Cadastre raquetes, guarda-sóis, cadeiras e bolas que saem e voltam. O PDV controla quem está com cada um.', botao: '<button type="button" class="botao primario" data-l="novo" data-tipo="aluguel">Cadastrar item para alugar</button>' });
@@ -131,7 +141,7 @@ function tabelaAluguel(d, lista) {
         <td><div class="unidades" role="img" aria-label="${p.fora} de ${total} com clientes">${Array.from({ length: Math.min(total, 24) }, (_, i) => `<i class="${i < p.fora ? 'fora' : ''}"></i>`).join('')}</div>
           <small>${p.estoque} ${p.estoque === 1 ? 'livre' : 'livres'}${p.fora ? `, ${p.fora} com clientes` : ''}</small></td>
         <td class="num so-largo">${p.vendidosMes}<small>${esc(dinheiro(p.valorMes))}</small></td>
-        <td class="acoes"><button type="button" class="botao fantasma pequeno" data-l="editar" data-id="${p.id}" aria-label="Editar ${esc(p.nome)}">${icone('lapis')}</button></td>
+        <td class="acoes"><button type="button" class="botao fantasma pequeno" data-l="editar" data-id="${p.id}" aria-label="Editar ${esc(p.nome)}">${icone('lapis')}</button><button type="button" class="botao fantasma pequeno perigo" data-l="excluir" data-id="${p.id}" aria-label="Excluir ${esc(p.nome)}" title="Excluir">${icone('lixeira')}</button></td>
       </tr>`;
     }).join('')}</tbody>
   </table></div>`;
@@ -150,7 +160,7 @@ function tabelaProdutos(lista, ingressos) {
         <td class="num so-largo">${p.vendidosMes}<small>${esc(dinheiro(p.valorMes))}</small></td>
         <td class="acoes">
           ${!ingressos && p.controlaEstoque ? `<button type="button" class="botao pequeno" data-l="entrada" data-id="${p.id}">${icone('estoque')}Entrada</button><button type="button" class="botao fantasma pequeno" data-l="contagem" data-id="${p.id}">Contagem</button>` : ''}
-          <button type="button" class="botao fantasma pequeno" data-l="editar" data-id="${p.id}" aria-label="Editar ${esc(p.nome)}">${icone('lapis')}</button>
+          <button type="button" class="botao fantasma pequeno" data-l="editar" data-id="${p.id}" aria-label="Editar ${esc(p.nome)}">${icone('lapis')}</button><button type="button" class="botao fantasma pequeno perigo" data-l="excluir" data-id="${p.id}" aria-label="Excluir ${esc(p.nome)}" title="Excluir">${icone('lixeira')}</button>
         </td>
       </tr>`;
     }).join('')}</tbody>
@@ -227,6 +237,7 @@ export default {
       if (alvo.dataset.l === 'editar') salvarProduto(ctx, p);
       if (alvo.dataset.l === 'entrada') entradaEstoque(ctx, p);
       if (alvo.dataset.l === 'contagem') ajustarEstoque(ctx, p);
+      if (alvo.dataset.l === 'excluir') excluirProduto(ctx, p);
     });
   }
 };

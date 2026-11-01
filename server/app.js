@@ -359,6 +359,19 @@ function criarApp({ cfg, banco, agora }) {
     res.json({ ok: true });
   }));
 
+  app.delete('/api/equipe/:id', exigir('dono'), rota(async (req, res) => {
+    const alvo = await acessos.usuarios.porId(Number(req.params.id));
+    if (!alvo || alvo.parqueId !== req.usuario.parqueId) throw new A.ErroUsuario('Pessoa não encontrada.', 404);
+    if (alvo.id === req.usuario.id) throw new A.ErroUsuario('Você não pode excluir o próprio acesso.');
+    if (alvo.papel === 'dono' && alvo.ativo) {
+      const gestores = (await acessos.usuarios.listar(req.usuario.parqueId)).filter(u => u.ativo && u.papel === 'dono');
+      if (gestores.length <= 1) throw new A.ErroUsuario('O complexo precisa de pelo menos uma pessoa na gestão.');
+    }
+    await acessos.usuarios.apagar(alvo.id);
+    await registrar(req, 'equipe', `Excluiu o acesso de ${alvo.nome} (${alvo.email}).`);
+    res.json({ ok: true });
+  }));
+
   app.post('/api/minha-senha', exigir(), rota(async (req, res) => {
     const u = await acessos.usuarios.porId(req.usuario.id);
     if (u.demo) throw new A.ErroUsuario('Os acessos de demonstração usam a senha padrão.');

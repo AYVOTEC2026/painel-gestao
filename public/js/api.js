@@ -53,6 +53,7 @@ export const api = {
   equipe: () => chamar('GET', '/api/equipe'),
   novaPessoa: dados => chamar('POST', '/api/equipe', dados),
   alterarPessoa: (id, dados) => chamar('PATCH', `/api/equipe/${id}`, dados),
+  excluirPessoa: id => chamar('DELETE', `/api/equipe/${id}`),
   minhaSenha: (atual, nova) => chamar('POST', '/api/minha-senha', { atual, nova }),
   operacaoReal: dados => chamar('POST', '/api/operacao-real', dados),
   carregarDemo: () => chamar('POST', '/api/carregar-demo', {}),
